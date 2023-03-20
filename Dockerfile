@@ -13,7 +13,7 @@ ARG CARGO_NET_GIT_FETCH_WITH_CLI=true
 
 RUN mkdir -p src && echo "fn main() {}" > src/main.rs && cargo build --release && rm -rf ./src/ target/release/deps/rust-pepperbot* target/release/rust-pepperbot*
 
-COPY /src ./src
+COPY src/ ./src/
 
 RUN cargo build --release
 
