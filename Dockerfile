@@ -1,4 +1,4 @@
-FROM rust:1.66-slim-buster as builder
+FROM rust:1.68-slim-buster as builder
 
 WORKDIR /app
 
