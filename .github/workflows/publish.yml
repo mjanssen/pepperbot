@@ -28,5 +28,5 @@ jobs:
           platforms: linux/amd64
           push: true
           tags: marnixjanssen/telgram-pepperbot:latest
-          cache-from: type=registry,ref=mjanssen_telegram-pepperbot:buildcache
-          cache-to: type=registry,ref=mjanssen_telegram-pepperbot:buildcache,mode=max
+          cache-from: type=gha
+          cache-to: type=gha,mode=max
