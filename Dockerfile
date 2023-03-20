@@ -19,4 +19,7 @@ FROM debian:bullseye-slim
 
 RUN apt-get update
 
+RUN apt-get install -y ca-certificates
+RUN update-ca-certificates --fresh
+
 COPY --from=builder /app/target/release/rust-pepperbot /usr/local/bin/rust-pepperbot
