@@ -6,12 +6,14 @@ WORKDIR /app
 RUN apt-get update
 RUN apt-get install libssl-dev pkg-config -y
 
-COPY ./Cargo.lock ./
+COPY ./Cargo.lock ./Cargo.lock
 COPY ./Cargo.toml ./Cargo.toml
 
-COPY /src ./src
-
 ARG CARGO_NET_GIT_FETCH_WITH_CLI=true
+
+RUN mkdir -p src && echo "fn main() {}" > src/main.rs && cargo build --release && rm -rf ./src/ target/release/deps/rust-pepperbot* target/release/rust-pepperbot*
+
+COPY /src ./src
 
 RUN cargo build --release
 
