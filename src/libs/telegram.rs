@@ -37,7 +37,7 @@ struct BotCommandService {
 
 impl BotCommandService {
     async fn start(&self) -> Result<(), Box<dyn std::error::Error>> {
-        println!("Starting bot command service");
+        println!("Started bot command service");
 
         let bot = self.bot.clone();
         let redis_service = self.redis_service.clone();
@@ -157,6 +157,8 @@ pub async fn init_bot_item_updates(
     let bot_service = BotMessageService {
         bot: Bot::from_env(),
     };
+
+    println!("Started bot messaging service");
 
     // Create endless loop that checks items every x-seconds
     loop {
