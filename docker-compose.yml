@@ -1,0 +1,11 @@
+version: "3.8"
+
+services:
+  redis:
+    container_name: pepperbot_redis
+    image: redis
+    ports:
+      - 6379:6379
+
+volumes:
+  postgres_data: null
