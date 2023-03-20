@@ -1,10 +1,10 @@
-FROM rust:1.68-slim-buster as builder
+FROM rust:1.68-buster as builder
 
 WORKDIR /app
 
 # Install necessities
 RUN apt-get update
-RUN apt-get install libssl-dev pkg-config git -y
+RUN apt-get install libssl-dev pkg-config -y
 
 COPY ./Cargo.lock ./
 COPY ./Cargo.toml ./Cargo.toml
