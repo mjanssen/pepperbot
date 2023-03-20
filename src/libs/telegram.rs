@@ -204,6 +204,10 @@ async fn get_items_and_notify(
 
                 let _: Result<(), redis::RedisError> =
                     redis::cmd("SET").arg(&id).arg(1).query(&mut con);
+
+                // Set expiration for key - 2 days
+                let _: Result<(), redis::RedisError> =
+                    redis::cmd("EXPIRE").arg(&id).arg(172800).query(&mut con);
             }
         }
     }
