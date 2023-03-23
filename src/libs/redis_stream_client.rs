@@ -7,8 +7,8 @@ use uuid::Uuid;
 
 use super::redis::MESSAGE_DATABASE;
 
-const STREAM_KEY: &str = "messages_stream";
-const GROUP_NAME: &str = "messages_consumer";
+const STREAM_KEY: &str = "messages_stream_v2";
+const GROUP_NAME: &str = "messages_consumer_v2";
 
 #[derive(Debug, Error)]
 pub enum RedisStreamError {
