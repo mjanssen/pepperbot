@@ -2,8 +2,7 @@ use redis::Client;
 use teloxide::{prelude::*, utils::command::BotCommands, RequestError};
 use thiserror::Error;
 
-const SUBSCRIBER_DATABASE: u8 = 0;
-pub const MESSAGE_DATABASE: u8 = 1;
+use super::redis::SUBSCRIBER_DATABASE;
 
 #[derive(Error, Debug)]
 pub enum BotError {
