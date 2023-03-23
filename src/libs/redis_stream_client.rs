@@ -7,8 +7,8 @@ use uuid::Uuid;
 
 use super::redis::MESSAGE_DATABASE;
 
-const STREAM_KEY: &str = "messages_stream";
-const GROUP_NAME: &str = "messages_consumer";
+const STREAM_KEY: &str = "messages_stream_v2";
+const GROUP_NAME: &str = "messages_consumer_v2";
 
 #[derive(Debug, Error)]
 pub enum RedisStreamError {
@@ -17,7 +17,7 @@ pub enum RedisStreamError {
 }
 
 pub struct StreamEntry {
-    pub id: String,
+    pub message_id: String,
     pub link: String,
     pub title: String,
     pub category: String,
@@ -63,6 +63,7 @@ impl RedisStreamClient {
             StreamMaxlen::Approx(100),
             "*",
             &[
+                ("message_id", &stream_entry.message_id),
                 ("link", &stream_entry.link),
                 ("title", &stream_entry.title),
                 ("category", &stream_entry.category),

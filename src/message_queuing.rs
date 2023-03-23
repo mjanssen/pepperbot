@@ -67,7 +67,7 @@ async fn main() -> Result<(), QueuingError> {
                                         };
 
                                         let stream_entry = StreamEntry {
-                                            id: link.clone(),
+                                            message_id: link.clone(),
                                             link,
                                             category,
                                             title,
