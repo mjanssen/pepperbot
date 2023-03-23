@@ -50,6 +50,22 @@ async fn main() -> Result<(), ConsumerError> {
                             for key in stream_key.keys {
                                 if let Some(stream) = key.ids.first() {
                                     let stream_entry = process_stream_entry(stream);
+
+                                    if stream_entry.message_id.eq("") {
+                                        continue;
+                                    }
+
+                                    let res: i64 = redis::cmd("EXISTS")
+                                        .arg(&stream_entry.message_id)
+                                        .query(&mut con)?;
+
+                                    // Only send if the message has not been send yet
+                                    if res == 1 {
+                                        continue;
+                                    }
+
+                                    println!("Sending msg {}", &stream_entry.message_id);
+
                                     let subscribers =
                                         bot_service.get_subscribers(redis_client.clone()).await;
 
@@ -66,12 +82,15 @@ async fn main() -> Result<(), ConsumerError> {
                                                 .await;
 
                                             let _: Result<(), redis::RedisError> =
-                                                redis::cmd("SET").arg(&stream_entry.id).arg(1).query(&mut con);
+                                                redis::cmd("SET")
+                                                    .arg(&stream_entry.message_id)
+                                                    .arg(1)
+                                                    .query(&mut con);
 
                                             // Set expiration for key - 2 days
                                             let _: Result<(), redis::RedisError> =
                                                 redis::cmd("EXPIRE")
-                                                    .arg(&stream_entry.id)
+                                                    .arg(&stream_entry.message_id)
                                                     .arg(172800)
                                                     .query(&mut con);
 
@@ -92,7 +111,7 @@ async fn main() -> Result<(), ConsumerError> {
 }
 
 fn process_stream_entry(stream_entry: &StreamId) -> StreamEntry {
-    let id: String = match stream_entry.get("id") {
+    let message_id: String = match stream_entry.get("message_id") {
         Some(v) => v,
         _ => "".to_string(),
     };
@@ -114,7 +133,7 @@ fn process_stream_entry(stream_entry: &StreamId) -> StreamEntry {
     };
 
     StreamEntry {
-        id,
+        message_id,
         title,
         link,
         category,
