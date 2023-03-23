@@ -10,6 +10,9 @@ pub enum RSSError {
 
     #[error(transparent)]
     RSSError(#[from] rss::Error),
+
+    #[error(transparent)]
+    RedisError(#[from] redis::RedisError),
 }
 
 pub async fn get_rss_data() -> Result<Channel, RSSError> {
@@ -19,3 +22,4 @@ pub async fn get_rss_data() -> Result<Channel, RSSError> {
 
     Ok(channel)
 }
+
