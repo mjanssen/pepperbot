@@ -66,7 +66,7 @@ async fn main() -> Result<(), ConsumerError> {
                                                 .await;
 
                                             let _: Result<(), redis::RedisError> =
-                                                redis::cmd("SET").arg(&id).arg(1).query(&mut con);
+                                                redis::cmd("SET").arg(&stream_entry.id).arg(1).query(&mut con);
 
                                             // Set expiration for key - 2 days
                                             let _: Result<(), redis::RedisError> =
