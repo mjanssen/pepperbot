@@ -1010,6 +1010,7 @@ dependencies = [
  "teloxide",
  "thiserror",
  "tokio",
+ "uuid",
 ]
 
 [[package]]

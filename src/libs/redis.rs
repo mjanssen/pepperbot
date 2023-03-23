@@ -5,7 +5,7 @@ use thiserror::Error;
 #[derive(Error, Debug)]
 pub enum RedisError {
     #[error(transparent)]
-    ReqwestError(#[from] redis::RedisError),
+    RedisError(#[from] redis::RedisError),
 
     #[error("Redis url not set in ENV")]
     RedisUrlMissing,
@@ -15,6 +15,9 @@ pub enum RedisError {
 pub struct RedisService {
     pub client: redis::Client,
 }
+
+pub const SUBSCRIBER_DATABASE: u8 = 0;
+pub const MESSAGE_DATABASE: u8 = 1;
 
 pub fn get_redis_service() -> Result<RedisService, RedisError> {
     if let Ok(redis_domain) = env::var("REDIS_URL") {
