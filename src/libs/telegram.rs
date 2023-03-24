@@ -114,7 +114,11 @@ impl BotMessageService {
         chat_id: String,
         message: String,
     ) -> Result<teloxide::prelude::Message, BotError> {
-        Ok(self.bot.send_message(chat_id, message).await?)
+        Ok(self
+            .bot
+            .send_message(chat_id, message)
+            .parse_mode(teloxide::types::ParseMode::MarkdownV2)
+            .await?)
     }
 
     pub async fn get_subscribers(&self, redis_client: Client) -> Result<Vec<String>, BotError> {
