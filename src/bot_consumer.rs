@@ -75,7 +75,7 @@ async fn main() -> Result<(), ConsumerError> {
                                                 .send_message(
                                                     chat_id,
                                                     format!(
-                                                        "{}\n{}",
+                                                        "[{}]({})",
                                                         stream_entry.title, stream_entry.link
                                                     ),
                                                 )
