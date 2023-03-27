@@ -17,6 +17,7 @@ path = "./src/bot_consumer.rs"
 
 [dependencies]
 redis = "0.22.3"
+regex = "1.7.3"
 reqwest = "0.11.14"
 rss = "2.0.2"
 teloxide = { version = "0.12.2", features = ["macros"] }

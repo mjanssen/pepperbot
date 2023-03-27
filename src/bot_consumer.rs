@@ -9,6 +9,8 @@ use thiserror::Error;
 
 use teloxide::Bot;
 
+use regex::Regex;
+
 #[derive(Debug, Error)]
 enum ConsumerError {
     #[error(transparent)]
@@ -20,6 +22,8 @@ async fn main() -> Result<(), ConsumerError> {
     if let Ok(redis_domain) = env::var("REDIS_URL") {
         match redis::Client::open(redis_domain.clone()) {
             Ok(redis_client) => {
+                let sanitize_regex = Regex::new(r"([^\w\s])").unwrap();
+
                 let stream_client = RedisStreamClient {
                     client: redis_client.clone(),
                 };
@@ -64,19 +68,22 @@ async fn main() -> Result<(), ConsumerError> {
                                         continue;
                                     }
 
-                                    println!("Sending msg {}", &stream_entry.message_id);
+                                    println!("Sending msg {:?}", &stream_entry);
 
                                     let subscribers =
                                         bot_service.get_subscribers(redis_client.clone()).await;
 
                                     if let Ok(chat_ids) = subscribers {
                                         for chat_id in chat_ids {
+                                            let sanitized_title = sanitize_regex
+                                                .replace_all(stream_entry.title.as_str(), "\\$1");
+
                                             let _ = bot_service
                                                 .send_message(
                                                     chat_id,
                                                     format!(
                                                         "[{}]({})",
-                                                        stream_entry.title, stream_entry.link
+                                                        sanitized_title, stream_entry.link
                                                     ),
                                                 )
                                                 .await;
