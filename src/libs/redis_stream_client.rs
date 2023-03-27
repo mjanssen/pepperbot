@@ -16,6 +16,7 @@ pub enum RedisStreamError {
     FailedCreateStream(#[from] RedisError),
 }
 
+#[derive(Debug)]
 pub struct StreamEntry {
     pub message_id: String,
     pub link: String,
