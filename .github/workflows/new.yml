@@ -18,8 +18,10 @@ jobs:
           use-cross: true
           command: build
           args: --target x86_64-unknown-linux-gnu --bins --release
+      - name: DEBUG Directories
+        run: ls -hal **/*
       - name: Rename binaries
-        run: mv message-queuing message-queuing_amd64 && mv bot-commands bot-commands_amd64 && mv bot-consumer bot-consumer_amd64
+        run: mv target/release/message-queuing message-queuing_amd64 && mv target/release/bot-commands bot-commands_amd64 && mv target/release/bot-consumer bot-consumer_amd64
       - name: Upload AMD64 binaries
         uses: actions/upload-artifact@v3
         with:
@@ -41,8 +43,10 @@ jobs:
           use-cross: true
           command: build
           args: --target aarch64-unknown-linux-gnu --bins --release
+      - name: DEBUG Directories
+        run: ls -hal **/*
       - name: Rename binaries
-        run: mv message-queuing message-queuing_arm64 && mv bot-commands bot-commands_arm64 && mv bot-consumer bot-consumer_arm64
+        run: mv target/release/message-queuing message-queuing_arm64 && mv target/release/bot-commands bot-commands_arm64 && mv target/release/bot-consumer bot-consumer_arm64
       - name: Upload ARM64 binaries
         uses: actions/upload-artifact@v3
         with:
