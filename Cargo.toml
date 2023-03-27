@@ -16,6 +16,7 @@ name = "bot-consumer"
 path = "./src/bot_consumer.rs"
 
 [dependencies]
+openssl = { version = "0.10", features = ["vendored"] }
 redis = "0.22.3"
 regex = "1.7.3"
 reqwest = "0.11.14"
