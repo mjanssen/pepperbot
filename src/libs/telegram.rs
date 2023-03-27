@@ -1,3 +1,4 @@
+use log::info;
 use redis::Client;
 use teloxide::{prelude::*, utils::command::BotCommands, RequestError};
 use thiserror::Error;
@@ -13,7 +14,7 @@ pub enum BotError {
     SendMessageError(#[from] RequestError),
 }
 
-#[derive(BotCommands, Clone)]
+#[derive(BotCommands, Clone, Debug)]
 #[command(
     rename_rule = "lowercase",
     description = "These commands are supported:"
@@ -34,12 +35,13 @@ pub struct BotCommandService {
 
 impl BotCommandService {
     pub async fn start(&self) -> Result<(), Box<dyn std::error::Error>> {
-        println!("Started bot command service");
+        info!("Started bot command service");
 
         let bot = self.bot.clone();
         let redis_client = self.redis_client.clone();
 
         Command::repl(bot, move |bot, msg, cmd| {
+            info!("Received command: Command::{:?}", cmd);
             // redis service clone is required, otherwise we lose the reference
             BotCommandService::answer(bot, msg, cmd, redis_client.clone())
         })
@@ -79,7 +81,6 @@ impl BotCommandService {
                 .await?
             }
             Command::Stop => {
-                println!("bb");
                 if let Ok(mut con) = redis_client.get_connection() {
                     // Set correct database first
                     let _: Result<(), redis::RedisError> = redis::cmd("SELECT")
