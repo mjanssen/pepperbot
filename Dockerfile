@@ -1,5 +1,7 @@
 FROM debian:bullseye-slim
 
+ARG TARGETARCH
+
 RUN apt-get update
 
 RUN apt-get install -y ca-certificates dumb-init

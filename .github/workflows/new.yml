@@ -81,6 +81,10 @@ jobs:
         uses: actions/download-artifact@v3
         with:
           name: arm64
+      - name: DEBUG Directories
+        run: ls -hal **/*
+      - name: DEBUG Directories 1
+        run: ls -hal **/**/*
       - name: Build and push
         id: docker_build
         uses: docker/build-push-action@v3
