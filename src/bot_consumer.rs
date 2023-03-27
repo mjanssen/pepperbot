@@ -20,11 +20,13 @@ enum ConsumerError {
 
 #[tokio::main]
 async fn main() -> Result<(), ConsumerError> {
+    env_logger::init();
+
     if let Ok(redis_domain) = env::var("REDIS_URL") {
         match redis::Client::open(redis_domain.clone()) {
             Ok(redis_client) => {
                 // Create a sanitize regex to clean the title
-                let sanitize_regex = Regex::new(r"([^\w\s\\'\\$\\€])").unwrap();
+                let sanitize_regex = Regex::new(r"([^\w\s\\'\\’\\$\\€])").unwrap();
 
                 let stream_client = RedisStreamClient {
                     client: redis_client.clone(),
