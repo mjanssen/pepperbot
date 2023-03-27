@@ -19,7 +19,7 @@ jobs:
           command: build
           args: --target x86_64-unknown-linux-gnu --bins --release
 
-  arm-unknown-linux-gnueabi:
+  aarch64-unknown-linux-gnu:
     name: Linux ARM64
     runs-on: ubuntu-latest
     steps:
@@ -27,10 +27,10 @@ jobs:
       - uses: actions-rs/toolchain@v1
         with:
           toolchain: stable
-          target: arm-unknown-linux-gnueabi
+          target: aarch64-unknown-linux-gnu
           override: true
       - uses: actions-rs/cargo@v1
         with:
           use-cross: true
           command: build
-          args: --target arm-unknown-linux-gnueabi --bins --release
+          args: --target aarch64-unknown-linux-gnu --bins --release
