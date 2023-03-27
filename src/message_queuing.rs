@@ -2,6 +2,7 @@ pub mod libs;
 
 use libs::redis_stream_client::RedisStreamError;
 use libs::rss::RSSError;
+use log::{error, info, warn};
 use rss::Channel;
 use std::env;
 use std::thread::sleep;
@@ -26,7 +27,9 @@ enum QueuingError {
 
 #[tokio::main]
 async fn main() -> Result<(), QueuingError> {
-    println!("Starting message queuing");
+    env_logger::init();
+
+    info!("Starting message queuing");
 
     if let Ok(redis_domain) = env::var("REDIS_URL") {
         match redis::Client::open(redis_domain.clone()) {
@@ -74,8 +77,8 @@ async fn main() -> Result<(), QueuingError> {
                                         };
 
                                         match stream_client.add(stream_entry, &mut con) {
-                                            Ok(id) => println!("added id: {}", id),
-                                            Err(e) => println!("xadd failed: {}", e),
+                                            Ok(id) => info!("added id: {}", id),
+                                            Err(e) => warn!("xadd failed: {}", e),
                                         }
                                     }
                                 }
@@ -83,11 +86,11 @@ async fn main() -> Result<(), QueuingError> {
 
                             sleep(Duration::from_millis(5000));
                         }
-                        Err(_) => panic!("Redis connection failed"),
+                        Err(_) => error!("Redis connection failed"),
                     };
                 }
             }
-            _ => panic!("Couldn't connect to redis"),
+            _ => error!("Couldn't connect to redis"),
         };
     }
 

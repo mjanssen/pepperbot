@@ -3,6 +3,7 @@ pub mod libs;
 use libs::redis::MESSAGE_DATABASE;
 use libs::redis_stream_client::{RedisStreamClient, StreamEntry};
 use libs::telegram::BotMessageService;
+use log::info;
 use redis::{streams::StreamId, ConnectionLike};
 use std::env;
 use thiserror::Error;
@@ -19,10 +20,13 @@ enum ConsumerError {
 
 #[tokio::main]
 async fn main() -> Result<(), ConsumerError> {
+    env_logger::init();
+
     if let Ok(redis_domain) = env::var("REDIS_URL") {
         match redis::Client::open(redis_domain.clone()) {
             Ok(redis_client) => {
-                let sanitize_regex = Regex::new(r"([^\w\s])").unwrap();
+                // Create a sanitize regex to clean the title
+                let sanitize_regex = Regex::new(r"([^\w\s\\'\\’\\$\\€])").unwrap();
 
                 let stream_client = RedisStreamClient {
                     client: redis_client.clone(),
@@ -68,7 +72,7 @@ async fn main() -> Result<(), ConsumerError> {
                                         continue;
                                     }
 
-                                    println!("Sending msg {:?}", &stream_entry);
+                                    info!("Sending message {:?}", &stream_entry);
 
                                     let subscribers =
                                         bot_service.get_subscribers(redis_client.clone()).await;
