@@ -23,7 +23,7 @@ async fn main() -> Result<(), ConsumerError> {
         match redis::Client::open(redis_domain.clone()) {
             Ok(redis_client) => {
                 // Create a sanitize regex to clean the title
-                let sanitize_regex = Regex::new(r"([^\w\s\'\$\€])").unwrap();
+                let sanitize_regex = Regex::new(r"([^\w\s\\'\\$\\€])").unwrap();
 
                 let stream_client = RedisStreamClient {
                     client: redis_client.clone(),
