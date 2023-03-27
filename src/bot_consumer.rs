@@ -3,6 +3,7 @@ pub mod libs;
 use libs::redis::MESSAGE_DATABASE;
 use libs::redis_stream_client::{RedisStreamClient, StreamEntry};
 use libs::telegram::BotMessageService;
+use log::info;
 use redis::{streams::StreamId, ConnectionLike};
 use std::env;
 use thiserror::Error;
@@ -69,7 +70,7 @@ async fn main() -> Result<(), ConsumerError> {
                                         continue;
                                     }
 
-                                    println!("Sending msg {:?}", &stream_entry);
+                                    info!("Sending message {:?}", &stream_entry);
 
                                     let subscribers =
                                         bot_service.get_subscribers(redis_client.clone()).await;
