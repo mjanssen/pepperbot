@@ -1,9 +1,11 @@
+use std::collections::HashMap;
+
 use log::info;
-use redis::Client;
+use redis::{Client, Commands};
 use teloxide::{prelude::*, utils::command::BotCommands, RequestError};
 use thiserror::Error;
 
-use super::redis::SUBSCRIBER_DATABASE;
+use super::redis::{RedisError, SUBSCRIBER_DATABASE};
 
 #[derive(Error, Debug)]
 pub enum BotError {
@@ -122,7 +124,10 @@ impl BotMessageService {
             .await?)
     }
 
-    pub async fn get_subscribers(&self, redis_client: Client) -> Result<Vec<String>, BotError> {
+    pub async fn get_subscribers(
+        &self,
+        redis_client: Client,
+    ) -> Result<HashMap<String, Option<Vec<String>>>, BotError> {
         if let Ok(mut con) = redis_client.get_connection() {
             let _: Result<(), redis::RedisError> = redis::cmd("SELECT")
                 .arg(SUBSCRIBER_DATABASE)
@@ -131,7 +136,23 @@ impl BotMessageService {
             let keys: Result<Vec<String>, redis::RedisError> =
                 redis::cmd("KEYS").arg("*").query(&mut con);
 
-            if let Ok(subscribers) = keys {
+            if let Ok(chat_ids) = keys {
+                let mut subscribers: HashMap<String, Option<Vec<String>>> = HashMap::new();
+                for chat_id in &chat_ids {
+                    let categories_string: String = con.get(chat_id).unwrap_or("".to_string());
+                    let categories: Vec<String> = categories_string
+                        .split(",")
+                        .map(|s| s.to_string())
+                        .collect();
+
+                    // Fix for initial sign-ups
+                    if categories.contains(&"1".to_string()) {
+                        subscribers.insert(chat_id.clone(), None);
+                    } else {
+                        subscribers.insert(chat_id.clone(), Some(categories));
+                    }
+                }
+
                 return Ok(subscribers);
             }
         }
