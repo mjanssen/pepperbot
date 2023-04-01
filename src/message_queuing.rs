@@ -60,7 +60,7 @@ async fn main() -> Result<(), QueuingError> {
 
                                     if res == 0 {
                                         let category = match item.categories.first() {
-                                            Some(f) => f.name.clone(),
+                                            Some(c) => c.name.clone(),
                                             _ => "".to_string(),
                                         };
 
@@ -72,7 +72,7 @@ async fn main() -> Result<(), QueuingError> {
                                         let stream_entry = StreamEntry {
                                             message_id: link.clone(),
                                             link,
-                                            category,
+                                            category: category.to_lowercase(),
                                             title,
                                         };
 
