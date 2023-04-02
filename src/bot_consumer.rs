@@ -12,7 +12,7 @@ use teloxide::Bot;
 
 use regex::Regex;
 
-use crate::libs::redis::get_config;
+use crate::libs::redis::{get_config, get_subscribers};
 
 #[derive(Debug, Error)]
 enum ConsumerError {
@@ -89,8 +89,7 @@ async fn main() -> Result<(), ConsumerError> {
 
                                     info!("Sending message {:?}", &stream_entry);
 
-                                    let subscribers =
-                                        bot_service.get_subscribers(redis_client.clone()).await;
+                                    let subscribers = get_subscribers(redis_client.clone()).await;
 
                                     if let Ok(subs) = subscribers {
                                         for (chat_id, categories) in subs {

@@ -1,6 +1,6 @@
-use std::env;
+use std::{collections::HashMap, env};
 
-use redis::{Connection, FromRedisValue, ToRedisArgs};
+use redis::{Client, Connection, FromRedisValue, ToRedisArgs};
 use thiserror::Error;
 
 #[derive(Error, Debug)]
@@ -10,6 +10,9 @@ pub enum RedisError {
 
     #[error("Redis url not set in ENV")]
     RedisUrlMissing,
+
+    #[error("No subscribers found")]
+    NoSubscribers,
 }
 
 #[derive(Clone)]
@@ -45,6 +48,45 @@ pub fn get_redis_service() -> Result<RedisService, RedisError> {
     }
 
     Err(RedisError::RedisUrlMissing)
+}
+
+pub async fn get_subscribers(
+    redis_client: Client,
+) -> Result<HashMap<String, Option<Vec<String>>>, RedisError> {
+    if let Ok(mut con) = redis_client.get_connection() {
+        let _: Result<(), redis::RedisError> = redis::cmd("SELECT")
+            .arg(Database::SUBSCRIBER as u8)
+            .query(&mut con);
+
+        let keys: Result<Vec<String>, redis::RedisError> =
+            redis::cmd("KEYS").arg("*").query(&mut con);
+
+        if let Ok(chat_ids) = keys {
+            let mut subscribers: HashMap<String, Option<Vec<String>>> = HashMap::new();
+            for chat_id in &chat_ids {
+                let categories_string: String = redis::cmd("GET")
+                    .arg(chat_id)
+                    .query(&mut con)
+                    .unwrap_or("".to_string());
+
+                let categories: Vec<String> = categories_string
+                    .split(",")
+                    .map(|s| s.to_string())
+                    .collect();
+
+                // Fix for initial sign-ups
+                if categories.contains(&"1".to_string()) {
+                    subscribers.insert(chat_id.clone(), None);
+                } else {
+                    subscribers.insert(chat_id.clone(), Some(categories));
+                }
+            }
+
+            return Ok(subscribers);
+        }
+    }
+
+    Err(RedisError::NoSubscribers)
 }
 
 pub fn set_config<T: ToRedisArgs>(
