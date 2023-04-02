@@ -77,21 +77,8 @@ async fn main() -> Result<(), ConsumerError> {
                                     let subscribers =
                                         bot_service.get_subscribers(redis_client.clone()).await;
 
-                                    if let Ok(chat_ids) = subscribers {
-                                        for chat_id in chat_ids {
-                                            let sanitized_title = sanitize_regex
-                                                .replace_all(stream_entry.title.as_str(), "\\$1");
-
-                                            let _ = bot_service
-                                                .send_message(
-                                                    chat_id,
-                                                    format!(
-                                                        "[{}]({})",
-                                                        sanitized_title, stream_entry.link
-                                                    ),
-                                                )
-                                                .await;
-
+                                    if let Ok(subs) = subscribers {
+                                        for (chat_id, categories) in subs {
                                             let _: Result<(), redis::RedisError> =
                                                 redis::cmd("SET")
                                                     .arg(&stream_entry.message_id)
@@ -106,6 +93,26 @@ async fn main() -> Result<(), ConsumerError> {
                                                     .query(&mut con);
 
                                             stream_client.acknowledge(&mut con, &stream.id)?;
+
+                                            // If user did not subscribe for this category, bail
+                                            if let Some(c) = categories {
+                                                if c.contains(&stream_entry.category) == false {
+                                                    continue;
+                                                }
+                                            }
+
+                                            let sanitized_title = sanitize_regex
+                                                .replace_all(stream_entry.title.as_str(), "\\$1");
+
+                                            let _ = bot_service
+                                                .send_message(
+                                                    chat_id,
+                                                    format!(
+                                                        "[{}]({})",
+                                                        sanitized_title, stream_entry.link
+                                                    ),
+                                                )
+                                                .await;
                                         }
                                     }
                                 }
@@ -138,7 +145,7 @@ fn process_stream_entry(stream_entry: &StreamId) -> StreamEntry {
     };
 
     // Can be used later on
-    let category: String = match stream_entry.get("link") {
+    let category: String = match stream_entry.get("category") {
         Some(v) => v,
         _ => "".to_string(),
     };
