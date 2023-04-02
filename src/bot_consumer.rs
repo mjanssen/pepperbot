@@ -79,11 +79,24 @@ async fn main() -> Result<(), ConsumerError> {
 
                                     if let Ok(subs) = subscribers {
                                         for (chat_id, categories) in subs {
+                                            let _: Result<(), redis::RedisError> =
+                                                redis::cmd("SET")
+                                                    .arg(&stream_entry.message_id)
+                                                    .arg(1)
+                                                    .query(&mut con);
+
+                                            // Set expiration for key - 2 days
+                                            let _: Result<(), redis::RedisError> =
+                                                redis::cmd("EXPIRE")
+                                                    .arg(&stream_entry.message_id)
+                                                    .arg(172800)
+                                                    .query(&mut con);
+
+                                            stream_client.acknowledge(&mut con, &stream.id)?;
+
                                             // If user did not subscribe for this category, bail
                                             if let Some(c) = categories {
                                                 if c.contains(&stream_entry.category) == false {
-                                                    stream_client
-                                                        .acknowledge(&mut con, &stream.id)?;
                                                     continue;
                                                 }
                                             }
@@ -100,21 +113,6 @@ async fn main() -> Result<(), ConsumerError> {
                                                     ),
                                                 )
                                                 .await;
-
-                                            let _: Result<(), redis::RedisError> =
-                                                redis::cmd("SET")
-                                                    .arg(&stream_entry.message_id)
-                                                    .arg(1)
-                                                    .query(&mut con);
-
-                                            // Set expiration for key - 2 days
-                                            let _: Result<(), redis::RedisError> =
-                                                redis::cmd("EXPIRE")
-                                                    .arg(&stream_entry.message_id)
-                                                    .arg(172800)
-                                                    .query(&mut con);
-
-                                            stream_client.acknowledge(&mut con, &stream.id)?;
                                         }
                                     }
                                 }
