@@ -5,7 +5,7 @@ use redis::{
 use thiserror::Error;
 use uuid::Uuid;
 
-use super::redis::MESSAGE_DATABASE;
+use super::redis::Database;
 
 const STREAM_KEY: &str = "messages_stream_v2";
 const GROUP_NAME: &str = "messages_consumer_v2";
@@ -34,7 +34,7 @@ impl RedisStreamClient {
 
         // Make the current connection connect to the messages database
         let _: Result<(), redis::RedisError> =
-            redis::cmd("SELECT").arg(MESSAGE_DATABASE).query(&mut con);
+            redis::cmd("SELECT").arg(Database::MESSAGE as u8).query(&mut con);
 
         match con.xgroup_create_mkstream(STREAM_KEY, GROUP_NAME, "$") {
             Ok(val) => val,
