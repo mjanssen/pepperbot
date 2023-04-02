@@ -10,7 +10,7 @@ use crate::libs::category::match_category;
 
 use super::{
     category::CATEGORIES,
-    redis::{set_config, Config, Database},
+    redis::{get_subscribers, set_config, Config, Database},
 };
 
 #[derive(Error, Debug)]
@@ -44,6 +44,8 @@ enum Command {
     StopBot,
     #[command(description = "Admin - Allow bot to send messages again")]
     StartBot,
+    #[command(description = "Admin - Broadcast to all subscribed users")]
+    Broadcast,
 }
 
 pub struct BotCommandService {
@@ -106,6 +108,27 @@ impl BotCommandService {
                         bot.send_message(msg.chat.id, "Started bot").await?;
 
                         return Ok(());
+                    }
+                }
+
+                Ok(())
+            }
+            Command::Broadcast => {
+                if let Ok(admin_chat) = env::var("ADMIN_CHAT_ID") {
+                    let message = msg.text().unwrap_or("");
+
+                    if admin_chat.eq(&msg.chat.id.to_string()) == false {
+                        // Admin command by non admin
+                        return Ok(());
+                    }
+
+                    let subscribers = get_subscribers(redis_client).await;
+
+                    if let Ok(subs) = subscribers {
+                        for (chat_id, _) in subs {
+                            bot.send_message(chat_id, message.replace("/broadcast", "").trim())
+                                .await?;
+                        }
                     }
                 }
 
@@ -273,41 +296,5 @@ impl BotMessageService {
             .send_message(chat_id, message)
             .parse_mode(teloxide::types::ParseMode::MarkdownV2)
             .await?)
-    }
-
-    pub async fn get_subscribers(
-        &self,
-        redis_client: Client,
-    ) -> Result<HashMap<String, Option<Vec<String>>>, BotError> {
-        if let Ok(mut con) = redis_client.get_connection() {
-            let _: Result<(), redis::RedisError> = redis::cmd("SELECT")
-                .arg(Database::SUBSCRIBER as u8)
-                .query(&mut con);
-
-            let keys: Result<Vec<String>, redis::RedisError> =
-                redis::cmd("KEYS").arg("*").query(&mut con);
-
-            if let Ok(chat_ids) = keys {
-                let mut subscribers: HashMap<String, Option<Vec<String>>> = HashMap::new();
-                for chat_id in &chat_ids {
-                    let categories_string: String = con.get(chat_id).unwrap_or("".to_string());
-                    let categories: Vec<String> = categories_string
-                        .split(",")
-                        .map(|s| s.to_string())
-                        .collect();
-
-                    // Fix for initial sign-ups
-                    if categories.contains(&"1".to_string()) {
-                        subscribers.insert(chat_id.clone(), None);
-                    } else {
-                        subscribers.insert(chat_id.clone(), Some(categories));
-                    }
-                }
-
-                return Ok(subscribers);
-            }
-        }
-
-        Err(BotError::NoSubscribers)
     }
 }
