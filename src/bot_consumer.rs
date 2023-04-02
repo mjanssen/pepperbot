@@ -1,6 +1,6 @@
 pub mod libs;
 
-use libs::redis::MESSAGE_DATABASE;
+use libs::redis::Database;
 use libs::redis_stream_client::{RedisStreamClient, StreamEntry};
 use libs::telegram::BotMessageService;
 use log::info;
@@ -11,6 +11,8 @@ use thiserror::Error;
 use teloxide::Bot;
 
 use regex::Regex;
+
+use crate::libs::redis::get_config;
 
 #[derive(Debug, Error)]
 enum ConsumerError {
@@ -49,8 +51,9 @@ async fn main() -> Result<(), ConsumerError> {
 
                     if let Ok(mut con) = redis_client.get_connection() {
                         // Make the current connection connect to the messages database
-                        let _: Result<(), redis::RedisError> =
-                            redis::cmd("SELECT").arg(MESSAGE_DATABASE).query(&mut con);
+                        let _: Result<(), redis::RedisError> = redis::cmd("SELECT")
+                            .arg(Database::MESSAGE as u8)
+                            .query(&mut con);
 
                         let result = stream_client.read(&mut con, &consumer_name);
 
@@ -60,6 +63,18 @@ async fn main() -> Result<(), ConsumerError> {
                                     let stream_entry = process_stream_entry(stream);
 
                                     if stream_entry.message_id.eq("") {
+                                        continue;
+                                    }
+
+                                    // Check if the bot has been disabled by the admin
+                                    let is_operational: String = get_config(
+                                        &mut con,
+                                        libs::redis::Config::OperationalKey,
+                                        Database::MESSAGE,
+                                    )
+                                    .unwrap_or("1".to_string());
+
+                                    if is_operational.eq(&"0") {
                                         continue;
                                     }
 

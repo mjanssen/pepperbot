@@ -8,7 +8,7 @@ use std::env;
 use std::thread::sleep;
 use std::time::Duration;
 
-use crate::libs::redis::MESSAGE_DATABASE;
+use crate::libs::redis::Database;
 use crate::libs::redis_stream_client::{RedisStreamClient, StreamEntry};
 use crate::libs::rss::get_rss_data;
 use thiserror::Error;
@@ -48,7 +48,7 @@ async fn main() -> Result<(), QueuingError> {
                         Ok(mut con) => {
                             // Make the current connection connect to the messages database
                             let _: Result<(), redis::RedisError> =
-                                redis::cmd("SELECT").arg(MESSAGE_DATABASE).query(&mut con);
+                                redis::cmd("SELECT").arg(Database::MESSAGE as u8).query(&mut con);
 
                             let mut channel: Channel = get_rss_data().await?;
                             channel.items.reverse();
