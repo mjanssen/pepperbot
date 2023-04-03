@@ -1,7 +1,5 @@
-use std::collections::HashMap;
-
 use log::info;
-use redis::{Client, Commands};
+use redis::Client;
 use std::env;
 use teloxide::{prelude::*, utils::command::BotCommands, RequestError};
 use thiserror::Error;
@@ -38,14 +36,26 @@ enum Command {
         description = "Signup for one of the Pepper categories. Only accepts comma-separated categories"
     )]
     Categories,
-    #[command(description = "List available Pepper categories")]
+    #[command(
+        rename = "available_categories",
+        description = "List available Pepper categories"
+    )]
     AvailableCategories,
-    #[command(description = "Admin - Stop bot from sending messages")]
-    StopBot,
-    #[command(description = "Admin - Allow bot to send messages again")]
-    StartBot,
-    #[command(description = "Admin - Broadcast to all subscribed users")]
-    Broadcast,
+    #[command(
+        rename = "stop_bot",
+        description = "Admin - Stop bot from sending messages"
+    )]
+    AdminStopBot,
+    #[command(
+        rename = "start_bot",
+        description = "Admin - Allow bot to send messages again"
+    )]
+    AdminStartBot,
+    #[command(
+        rename = "admin_broadcast",
+        description = "Admin - Broadcast to all subscribed users"
+    )]
+    AdminBroadcast,
 }
 
 pub struct BotCommandService {
@@ -70,6 +80,19 @@ impl BotCommandService {
         Ok(())
     }
 
+    fn is_admin(chat_id: &String) -> bool {
+        if let Ok(admin_chat_id) = env::var("ADMIN_CHAT_ID") {
+            if admin_chat_id.eq(chat_id) {
+                // Admin command by admin
+                return true;
+            }
+        }
+
+        info!("Admin command executed by non-admin {}", chat_id);
+
+        return false;
+    }
+
     async fn answer(
         bot: Bot,
         msg: Message,
@@ -77,14 +100,9 @@ impl BotCommandService {
         redis_client: Client,
     ) -> Result<(), RequestError> {
         match cmd {
-            Command::StopBot => {
-                if let Ok(admin_chat) = env::var("ADMIN_CHAT_ID") {
+            Command::AdminStopBot => {
+                if BotCommandService::is_admin(&msg.chat.id.to_string()) {
                     if let Ok(mut con) = redis_client.get_connection() {
-                        if admin_chat.eq(&msg.chat.id.to_string()) == false {
-                            // Admin command by non admin
-                            return Ok(());
-                        }
-
                         let _ = set_config(&mut con, Config::OperationalKey, 0);
 
                         bot.send_message(msg.chat.id, "Stopped bot").await?;
@@ -95,14 +113,9 @@ impl BotCommandService {
 
                 Ok::<(), RequestError>(())
             }
-            Command::StartBot => {
-                if let Ok(admin_chat) = env::var("ADMIN_CHAT_ID") {
+            Command::AdminStartBot => {
+                if BotCommandService::is_admin(&msg.chat.id.to_string()) {
                     if let Ok(mut con) = redis_client.get_connection() {
-                        if admin_chat.eq(&msg.chat.id.to_string()) == false {
-                            // Admin command by non admin
-                            return Ok(());
-                        }
-
                         let _ = set_config(&mut con, Config::OperationalKey, 1);
 
                         bot.send_message(msg.chat.id, "Started bot").await?;
@@ -113,21 +126,19 @@ impl BotCommandService {
 
                 Ok(())
             }
-            Command::Broadcast => {
-                if let Ok(admin_chat) = env::var("ADMIN_CHAT_ID") {
+            Command::AdminBroadcast => {
+                if BotCommandService::is_admin(&msg.chat.id.to_string()) {
                     let message = msg.text().unwrap_or("");
-
-                    if admin_chat.eq(&msg.chat.id.to_string()) == false {
-                        // Admin command by non admin
-                        return Ok(());
-                    }
 
                     let subscribers = get_subscribers(redis_client).await;
 
                     if let Ok(subs) = subscribers {
                         for (chat_id, _) in subs {
-                            bot.send_message(chat_id, message.replace("/broadcast", "").trim())
-                                .await?;
+                            bot.send_message(
+                                chat_id,
+                                message.replace("/admin_broadcast", "").trim(),
+                            )
+                            .await?;
                         }
                     }
                 }
@@ -145,7 +156,7 @@ impl BotCommandService {
                                 return true;
                             };
 
-                            l.contains("/stopbot") == false && l.contains("/startbot") == false
+                            l.to_lowercase().contains("admin") == false
                         })
                         .collect();
 
