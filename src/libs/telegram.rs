@@ -1,7 +1,5 @@
-use std::collections::HashMap;
-
 use log::info;
-use redis::{Client, Commands};
+use redis::Client;
 use std::env;
 use teloxide::{prelude::*, utils::command::BotCommands, RequestError};
 use thiserror::Error;
@@ -38,14 +36,26 @@ enum Command {
         description = "Signup for one of the Pepper categories. Only accepts comma-separated categories"
     )]
     Categories,
-    #[command(description = "List available Pepper categories")]
+    #[command(
+        rename = "available_categories",
+        description = "List available Pepper categories"
+    )]
     AvailableCategories,
-    #[command(description = "Admin - Stop bot from sending messages")]
-    StopBot,
-    #[command(description = "Admin - Allow bot to send messages again")]
-    StartBot,
-    #[command(description = "Admin - Broadcast to all subscribed users")]
-    Broadcast,
+    #[command(
+        rename = "stop_bot",
+        description = "Admin - Stop bot from sending messages"
+    )]
+    AdminStopBot,
+    #[command(
+        rename = "start_bot",
+        description = "Admin - Allow bot to send messages again"
+    )]
+    AdminStartBot,
+    #[command(
+        rename = "admin_broadcast",
+        description = "Admin - Broadcast to all subscribed users"
+    )]
+    AdminBroadcast,
 }
 
 pub struct BotCommandService {
@@ -77,7 +87,7 @@ impl BotCommandService {
         redis_client: Client,
     ) -> Result<(), RequestError> {
         match cmd {
-            Command::StopBot => {
+            Command::AdminStopBot => {
                 if let Ok(admin_chat) = env::var("ADMIN_CHAT_ID") {
                     if let Ok(mut con) = redis_client.get_connection() {
                         if admin_chat.eq(&msg.chat.id.to_string()) == false {
@@ -95,7 +105,7 @@ impl BotCommandService {
 
                 Ok::<(), RequestError>(())
             }
-            Command::StartBot => {
+            Command::AdminStartBot => {
                 if let Ok(admin_chat) = env::var("ADMIN_CHAT_ID") {
                     if let Ok(mut con) = redis_client.get_connection() {
                         if admin_chat.eq(&msg.chat.id.to_string()) == false {
@@ -113,7 +123,7 @@ impl BotCommandService {
 
                 Ok(())
             }
-            Command::Broadcast => {
+            Command::AdminBroadcast => {
                 if let Ok(admin_chat) = env::var("ADMIN_CHAT_ID") {
                     let message = msg.text().unwrap_or("");
 
@@ -126,8 +136,11 @@ impl BotCommandService {
 
                     if let Ok(subs) = subscribers {
                         for (chat_id, _) in subs {
-                            bot.send_message(chat_id, message.replace("/broadcast", "").trim())
-                                .await?;
+                            bot.send_message(
+                                chat_id,
+                                message.replace("/admin_broadcast", "").trim(),
+                            )
+                            .await?;
                         }
                     }
                 }
@@ -145,7 +158,7 @@ impl BotCommandService {
                                 return true;
                             };
 
-                            l.contains("/stopbot") == false && l.contains("/startbot") == false
+                            l.contains("admin") == false
                         })
                         .collect();
 
