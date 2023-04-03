@@ -73,7 +73,7 @@ impl BotCommandService {
         Command::repl(bot, move |bot, msg, cmd| {
             info!("Received command: Command::{:?}", cmd);
             // redis service clone is required, otherwise we lose the reference
-            BotCommandService::answer(bot, msg, cmd, redis_client.clone())
+            Self::answer(bot, msg, cmd, redis_client.clone())
         })
         .await;
 
@@ -93,6 +93,16 @@ impl BotCommandService {
         return false;
     }
 
+    async fn send_message(bot: &Bot, chat_id: String, message: &str) {
+        match bot
+            .send_message(chat_id, message.replace("/admin_broadcast", "").trim())
+            .await
+        {
+            Ok(_) => (),
+            Err(e) => info!("Message failed sending {}", e),
+        };
+    }
+
     async fn answer(
         bot: Bot,
         msg: Message,
@@ -101,11 +111,11 @@ impl BotCommandService {
     ) -> Result<(), RequestError> {
         match cmd {
             Command::AdminStopBot => {
-                if BotCommandService::is_admin(&msg.chat.id.to_string()) {
+                if Self::is_admin(&msg.chat.id.to_string()) {
                     if let Ok(mut con) = redis_client.get_connection() {
                         let _ = set_config(&mut con, Config::OperationalKey, 0);
 
-                        bot.send_message(msg.chat.id, "Stopped bot").await?;
+                        Self::send_message(&bot, msg.chat.id.to_string(), "Stopped bot").await;
 
                         return Ok(());
                     }
@@ -114,11 +124,11 @@ impl BotCommandService {
                 Ok::<(), RequestError>(())
             }
             Command::AdminStartBot => {
-                if BotCommandService::is_admin(&msg.chat.id.to_string()) {
+                if Self::is_admin(&msg.chat.id.to_string()) {
                     if let Ok(mut con) = redis_client.get_connection() {
                         let _ = set_config(&mut con, Config::OperationalKey, 1);
 
-                        bot.send_message(msg.chat.id, "Started bot").await?;
+                        Self::send_message(&bot, msg.chat.id.to_string(), "Started bot").await;
 
                         return Ok(());
                     }
@@ -127,18 +137,19 @@ impl BotCommandService {
                 Ok(())
             }
             Command::AdminBroadcast => {
-                if BotCommandService::is_admin(&msg.chat.id.to_string()) {
+                if Self::is_admin(&msg.chat.id.to_string()) {
                     let message = msg.text().unwrap_or("");
 
                     let subscribers = get_subscribers(redis_client).await;
 
                     if let Ok(subs) = subscribers {
                         for (chat_id, _) in subs {
-                            bot.send_message(
+                            Self::send_message(
+                                &bot,
                                 chat_id,
                                 message.replace("/admin_broadcast", "").trim(),
                             )
-                            .await?;
+                            .await;
                         }
                     }
                 }
@@ -160,7 +171,8 @@ impl BotCommandService {
                         })
                         .collect();
 
-                    bot.send_message(msg.chat.id, commands.join("\n")).await?;
+                    Self::send_message(&bot, msg.chat.id.to_string(), commands.join("\n").as_str())
+                        .await;
 
                     return Ok(());
                 }
@@ -180,11 +192,12 @@ impl BotCommandService {
                         .query(&mut con);
                 }
 
-                bot.send_message(
-                    msg.chat.id,
+                Self::send_message(
+                    &bot,
+                    msg.chat.id.to_string(),
                     "Signup was successful. You will now receive new updates from Pepper",
                 )
-                .await?;
+                .await;
 
                 Ok(())
             }
@@ -199,11 +212,11 @@ impl BotCommandService {
                         .arg(msg.chat.id.to_string())
                         .query(&mut con);
 
-                    bot.send_message(
-                msg.chat.id,
-                "Subscription was stopped successfully. You will now receive new updates from Pepper",
-            )
-            .await?;
+                    Self::send_message(
+                        &bot,
+                        msg.chat.id.to_string(),
+                        "Subscription was stopped successfully. You will now receive new updates from Pepper",
+                    ).await;
                 }
 
                 Ok(())
@@ -237,11 +250,13 @@ impl BotCommandService {
                                 .arg(1)
                                 .query(&mut con);
 
-                            bot.send_message(
-                                msg.chat.id,
+                            Self::send_message(
+                                &bot,
+                                msg.chat.id.to_string(),
                                 "No categories passed, disabled your category filters",
                             )
-                            .await?;
+                            .await;
+
                         // If there are filters found, set the filters for this user
                         } else {
                             let _: Result<(), redis::RedisError> = redis::cmd("SET")
@@ -249,39 +264,44 @@ impl BotCommandService {
                                 .arg(passed_categories.join(","))
                                 .query(&mut con);
 
-                            bot.send_message(
-                                msg.chat.id,
-                                format!("Signed up for {}", passed_categories.join(", ")),
+                            Self::send_message(
+                                &bot,
+                                msg.chat.id.to_string(),
+                                format!("Signed up for {}", passed_categories.join(", ")).as_str(),
                             )
-                            .await?;
+                            .await;
                         }
                     // This user did some magic
                     } else {
-                        bot.send_message(
-                            msg.chat.id,
+                        Self::send_message(
+                            &bot,
+                            msg.chat.id.to_string(),
                             "Something went wrong with reading your message, please try again.",
                         )
-                        .await?;
+                        .await;
                     }
                 } else {
-                    bot.send_message(
-                        msg.chat.id,
+                    Self::send_message(
+                        &bot,
+                        msg.chat.id.to_string(),
                         "Our service is currently down, please try again later.",
                     )
-                    .await?;
+                    .await;
                 }
 
                 Ok(())
             }
             Command::AvailableCategories => {
-                bot.send_message(
-                    msg.chat.id,
+                Self::send_message(
+                    &bot,
+                    msg.chat.id.to_string(),
                     format!(
                         "The following categories are available for signups: \n\n{}",
                         CATEGORIES.join("\n")
-                    ),
+                    )
+                    .as_str(),
                 )
-                .await?;
+                .await;
 
                 Ok(())
             }
@@ -297,15 +317,18 @@ pub struct BotMessageService {
 }
 
 impl BotMessageService {
-    pub async fn send_message(
-        &self,
-        chat_id: String,
-        message: String,
-    ) -> Result<teloxide::prelude::Message, BotError> {
-        Ok(self
+    pub async fn send_message(&self, chat_id: String, message: String) -> Result<(), BotError> {
+        match self
             .bot
             .send_message(chat_id, message)
             .parse_mode(teloxide::types::ParseMode::MarkdownV2)
-            .await?)
+            .await
+        {
+            Ok(_) => Ok(()),
+            Err(e) => {
+                info!("Message failed sending {}", e);
+                Err(BotError::SendMessageError(e))
+            }
+        }
     }
 }
