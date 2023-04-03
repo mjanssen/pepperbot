@@ -52,7 +52,7 @@ enum Command {
     )]
     AdminStartBot,
     #[command(
-        rename = "admin_broadcast",
+        rename = "broadcast",
         description = "Admin - Broadcast to all subscribed users"
     )]
     AdminBroadcast,
