@@ -80,6 +80,19 @@ impl BotCommandService {
         Ok(())
     }
 
+    fn is_admin(chat_id: &String) -> bool {
+        if let Ok(admin_chat_id) = env::var("ADMIN_CHAT_ID") {
+            if admin_chat_id.eq(chat_id) {
+                // Admin command by admin
+                return true;
+            }
+        }
+
+        info!("Admin command executed by non-admin {}", chat_id);
+
+        return false;
+    }
+
     async fn answer(
         bot: Bot,
         msg: Message,
@@ -88,13 +101,8 @@ impl BotCommandService {
     ) -> Result<(), RequestError> {
         match cmd {
             Command::AdminStopBot => {
-                if let Ok(admin_chat) = env::var("ADMIN_CHAT_ID") {
+                if BotCommandService::is_admin(&msg.chat.id.to_string()) {
                     if let Ok(mut con) = redis_client.get_connection() {
-                        if admin_chat.eq(&msg.chat.id.to_string()) == false {
-                            // Admin command by non admin
-                            return Ok(());
-                        }
-
                         let _ = set_config(&mut con, Config::OperationalKey, 0);
 
                         bot.send_message(msg.chat.id, "Stopped bot").await?;
@@ -106,13 +114,8 @@ impl BotCommandService {
                 Ok::<(), RequestError>(())
             }
             Command::AdminStartBot => {
-                if let Ok(admin_chat) = env::var("ADMIN_CHAT_ID") {
+                if BotCommandService::is_admin(&msg.chat.id.to_string()) {
                     if let Ok(mut con) = redis_client.get_connection() {
-                        if admin_chat.eq(&msg.chat.id.to_string()) == false {
-                            // Admin command by non admin
-                            return Ok(());
-                        }
-
                         let _ = set_config(&mut con, Config::OperationalKey, 1);
 
                         bot.send_message(msg.chat.id, "Started bot").await?;
@@ -124,13 +127,8 @@ impl BotCommandService {
                 Ok(())
             }
             Command::AdminBroadcast => {
-                if let Ok(admin_chat) = env::var("ADMIN_CHAT_ID") {
+                if BotCommandService::is_admin(&msg.chat.id.to_string()) {
                     let message = msg.text().unwrap_or("");
-
-                    if admin_chat.eq(&msg.chat.id.to_string()) == false {
-                        // Admin command by non admin
-                        return Ok(());
-                    }
 
                     let subscribers = get_subscribers(redis_client).await;
 
@@ -158,7 +156,7 @@ impl BotCommandService {
                                 return true;
                             };
 
-                            l.contains("admin") == false
+                            l.to_lowercase().contains("admin") == false
                         })
                         .collect();
 
