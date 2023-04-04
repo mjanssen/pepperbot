@@ -1,0 +1,33 @@
+{
+  "name": "pepperbot",
+  "version": "0.0.0",
+  "description": "",
+  "scripts": {
+    "prestart": "rimraf ./build",
+    "start": "webpack-dev-server --open --config webpack.config.js --mode=development",
+    "prebuild": "rimraf ./build",
+    "build": "cross-env NODE_ENV=production webpack --mode production --config webpack.config.js",
+    "prewebpack": "rimraf ./build",
+    "webpack": "webpack --watch --mode development --config webpack.config.js"
+  },
+  "engines": {
+    "node": "^18.0.0"
+  },
+  "author": "Glenn de Haan",
+  "license": "MIT",
+  "dependencies": {
+    "autoprefixer": "^10.4.12",
+    "copy-webpack-plugin": "^11.0.0",
+    "cross-env": "^7.0.3",
+    "css-loader": "^6.7.1",
+    "css-minimizer-webpack-plugin": "^5.0.0",
+    "html-webpack-plugin": "^5.5.0",
+    "mini-css-extract-plugin": "^2.6.1",
+    "postcss-loader": "^7.0.1",
+    "rimraf": "^4.4.1",
+    "tailwindcss": "^3.1.8",
+    "webpack": "^5.74.0",
+    "webpack-cli": "^5.0.1",
+    "webpack-dev-server": "^4.11.1"
+  }
+}
