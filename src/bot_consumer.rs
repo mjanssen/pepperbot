@@ -12,7 +12,7 @@ use teloxide::Bot;
 
 use regex::Regex;
 
-use crate::libs::redis::{get_config, get_subscribers};
+use crate::libs::redis::{get_config, get_subscribers, increase_config_value};
 
 #[derive(Debug, Error)]
 enum ConsumerError {
@@ -41,6 +41,11 @@ async fn main() -> Result<(), ConsumerError> {
 
                 // We don't care for existing group errors
                 match stream_client.create_group_and_stream() {
+                    _ => (),
+                }
+
+                // Make sure the generic application config is set
+                match stream_client.create_generic_config() {
                     _ => (),
                 }
 
@@ -89,9 +94,18 @@ async fn main() -> Result<(), ConsumerError> {
 
                                     info!("Sending message {:?}", &stream_entry);
 
+                                    let _ = increase_config_value::<()>(
+                                        &mut con,
+                                        libs::redis::Config::DealsSentKey,
+                                        Database::MESSAGE,
+                                        1
+                                    );
+
                                     let subscribers = get_subscribers(redis_client.clone()).await;
 
                                     if let Ok(subs) = subscribers {
+                                        let mut messages_sent = 0;
+
                                         for (chat_id, categories) in subs {
                                             let _: Result<(), redis::RedisError> =
                                                 redis::cmd("SET")
@@ -127,7 +141,16 @@ async fn main() -> Result<(), ConsumerError> {
                                                     ),
                                                 )
                                                 .await;
+
+                                            messages_sent += 1;
                                         }
+
+                                        let _ = increase_config_value::<()>(
+                                            &mut con,
+                                            libs::redis::Config::MessagesSentKey,
+                                            Database::MESSAGE,
+                                            messages_sent,
+                                        );
                                     }
                                 }
                             }

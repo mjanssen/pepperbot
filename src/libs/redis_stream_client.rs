@@ -2,10 +2,11 @@ use redis::{
     streams::{StreamMaxlen, StreamReadOptions, StreamReadReply},
     Client, Commands, Connection, RedisError, RedisResult,
 };
+
 use thiserror::Error;
 use uuid::Uuid;
 
-use super::redis::Database;
+use super::redis::{Database, Config};
 
 const STREAM_KEY: &str = "messages_stream_v2";
 const GROUP_NAME: &str = "messages_consumer_v2";
@@ -33,8 +34,9 @@ impl RedisStreamClient {
         let mut con: Connection = self.get_connection()?;
 
         // Make the current connection connect to the messages database
-        let _: Result<(), redis::RedisError> =
-            redis::cmd("SELECT").arg(Database::MESSAGE as u8).query(&mut con);
+        let _: Result<(), redis::RedisError> = redis::cmd("SELECT")
+            .arg(Database::MESSAGE as u8)
+            .query(&mut con);
 
         match con.xgroup_create_mkstream(STREAM_KEY, GROUP_NAME, "$") {
             Ok(val) => val,
@@ -42,6 +44,33 @@ impl RedisStreamClient {
                 return Err(RedisStreamError::FailedCreateStream(e));
             }
         };
+
+        Ok(())
+    }
+
+    // Create generic config for the application. SETNX is used to keep existing config
+    pub fn create_generic_config(&self) -> Result<(), RedisStreamError> {
+        let mut con: Connection = self.get_connection()?;
+
+        // Make the current connection connect to the messages database
+        let _: Result<(), redis::RedisError> = redis::cmd("SELECT")
+            .arg(Database::CONFIG as u8)
+            .query(&mut con);
+
+        let _: Result<u8, redis::RedisError> = redis::cmd("SETNX")
+            .arg(Config::OperationalKey.value())
+            .arg(1)
+            .query::<u8>(&mut con);
+
+        let _: Result<u8, redis::RedisError> = redis::cmd("SETNX")
+            .arg(Config::MessagesSentKey.value())
+            .arg(0)
+            .query::<u8>(&mut con);
+
+        let _: Result<u8, redis::RedisError> = redis::cmd("SETNX")
+            .arg(Config::DealsSentKey.value())
+            .arg(0)
+            .query::<u8>(&mut con);
 
         Ok(())
     }
