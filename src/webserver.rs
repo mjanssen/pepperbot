@@ -12,7 +12,7 @@ use libs::redis::{get_config, get_subscriber_amount};
 use log::error;
 use std::env;
 
-static STATIC_DIR: Dir<'_> = include_dir!("$HTML_BUILD_DIR");
+static STATIC_DIR: Dir<'_> = include_dir!("./html/build");
 
 #[tokio::main]
 async fn main() -> Result<(), Box<dyn std::error::Error>> {
