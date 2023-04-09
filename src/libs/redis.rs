@@ -3,6 +3,8 @@ use std::{collections::HashMap, env};
 use redis::{Client, Connection, FromRedisValue, ToRedisArgs};
 use thiserror::Error;
 
+use bb8_redis::RedisConnectionManager;
+
 #[derive(Error, Debug)]
 pub enum RedisError {
     #[error(transparent)]
@@ -28,12 +30,16 @@ pub enum Database {
 
 pub enum Config {
     OperationalKey,
+    MessagesSentKey,
+    DealsSentKey,
 }
 
 impl Config {
     pub fn value(&self) -> &str {
         match *self {
             Config::OperationalKey => "is_operational",
+            Config::MessagesSentKey => "messages_sent_count",
+            Config::DealsSentKey => "deals_sent_count",
         }
     }
 }
@@ -48,6 +54,30 @@ pub fn get_redis_service() -> Result<RedisService, RedisError> {
     }
 
     Err(RedisError::RedisUrlMissing)
+}
+
+pub fn get_redis_connection_manager() -> Result<RedisConnectionManager, RedisError> {
+    if let Ok(redis_domain) = env::var("REDIS_URL") {
+        let manager = RedisConnectionManager::new(redis_domain).unwrap();
+
+        return Ok(manager);
+    }
+
+    Err(RedisError::RedisUrlMissing)
+}
+
+pub async fn get_subscriber_amount(con: &mut Connection) -> usize {
+    let _: Result<(), redis::RedisError> = redis::cmd("SELECT")
+        .arg(Database::SUBSCRIBER as u8)
+        .query(con);
+
+    let keys: Result<Vec<String>, redis::RedisError> = redis::cmd("KEYS").arg("*").query(con);
+
+    if let Ok(chat_ids) = keys {
+        return chat_ids.len();
+    }
+
+    0
 }
 
 pub async fn get_subscribers(
@@ -106,6 +136,28 @@ pub fn set_config<T: ToRedisArgs>(
         .query(&mut con);
 
     Ok(())
+}
+
+pub fn increase_config_value<T: FromRedisValue>(
+    mut con: &mut Connection,
+    config_key: Config,
+    next_database: Database,
+    amount: u8,
+) -> Result<(), RedisError> {
+    let key: &str = config_key.value();
+
+    let _: Result<(), redis::RedisError> = redis::cmd("SELECT")
+        .arg(Database::CONFIG as u8)
+        .query(&mut con);
+
+    let _: Result<(), redis::RedisError> =
+        redis::cmd("INCRBY").arg(key).arg(amount).query(&mut con);
+
+    let _: Result<(), redis::RedisError> = redis::cmd("SELECT")
+        .arg(next_database as u8)
+        .query(&mut con);
+
+    return Ok(());
 }
 
 pub fn get_config<T: FromRedisValue>(
