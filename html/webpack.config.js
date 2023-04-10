@@ -54,6 +54,9 @@ const config = {
     plugins: [
         new CopyPlugin({
             patterns: [
+                {from: 'public/manifest.json'},
+                {from: 'public/sitemap.xml'},
+                {from: 'public/robots.txt'},
                 {from: 'public/images/*.*', to: 'images/[name][ext]'}
             ]
         }),
