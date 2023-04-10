@@ -1,0 +1,33 @@
+{
+  "name": "Pepperbot",
+  "short_name": "Pepperbot",
+  "description": "Pepperbot is a Telegram bot that provides users with real-time notifications about discounts on their favorite products and services. With Pepperbot, users can save money and time by receiving notifications directly on their mobile devices whenever a discount becomes available.",
+  "icons": [
+    {
+      "src": "./images/logo.png",
+      "type": "image/png",
+      "sizes": "150x150",
+      "purpose": "any"
+    }
+  ],
+  "screenshots" : [
+    {
+      "src": "./images/screenshot_full.png",
+      "sizes": "1478x994",
+      "type": "image/png"
+    },
+    {
+      "src": "./images/screenshot_small.png",
+      "sizes": "1478x994",
+      "type": "image/png"
+    }
+  ],
+  "start_url": "/",
+  "scope": "/",
+  "display": "standalone",
+  "categories": ["utilities"],
+  "background_color": "#111827",
+  "theme_color": "#111827",
+  "related_applications": [],
+  "iarc_rating_id": ""
+}
