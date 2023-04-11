@@ -8,6 +8,7 @@ use std::env;
 use std::thread::sleep;
 use std::time::Duration;
 
+use crate::libs::version::print_version;
 use crate::libs::redis::Database;
 use crate::libs::redis_stream_client::{RedisStreamClient, StreamEntry};
 use crate::libs::rss::get_rss_data;
@@ -28,8 +29,9 @@ enum QueuingError {
 #[tokio::main]
 async fn main() -> Result<(), QueuingError> {
     env_logger::init();
+    print_version();
 
-    info!("Starting message queuing");
+    info!("Starting message queuing service");
 
     if let Ok(redis_domain) = env::var("REDIS_URL") {
         match redis::Client::open(redis_domain.clone()) {

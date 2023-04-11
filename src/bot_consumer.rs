@@ -12,6 +12,7 @@ use teloxide::Bot;
 
 use regex::Regex;
 
+use crate::libs::version::print_version;
 use crate::libs::redis::{get_config, get_subscribers, increase_config_value};
 
 #[derive(Debug, Error)]
@@ -23,6 +24,9 @@ enum ConsumerError {
 #[tokio::main]
 async fn main() -> Result<(), ConsumerError> {
     env_logger::init();
+    print_version();
+
+    info!("Starting bot consumer service");
 
     if let Ok(redis_domain) = env::var("REDIS_URL") {
         match redis::Client::open(redis_domain.clone()) {
