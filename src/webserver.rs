@@ -1,22 +1,31 @@
 pub mod libs;
 
 use axum::{
-    body::{self, Empty, Full},
+    body::{self, Body, Empty, Full},
     extract::{Path, State},
-    http::{header, HeaderValue},
+    http::{header, HeaderValue, Request},
     response::{IntoResponse, Response},
     routing::get,
 };
 use include_dir::{include_dir, Dir};
 use libs::redis::{get_config, get_subscriber_amount};
-use log::error;
+use log::{error, info};
 use std::env;
+use tower_http::trace::{DefaultMakeSpan, TraceLayer};
+use tracing::Span;
+use tracing_subscriber::{layer::SubscriberExt, util::SubscriberInitExt};
 
 static STATIC_DIR: Dir<'_> = include_dir!("./html/build");
 
 #[tokio::main]
 async fn main() -> Result<(), Box<dyn std::error::Error>> {
-    env_logger::init();
+    tracing_subscriber::registry()
+        .with(
+            tracing_subscriber::EnvFilter::try_from_default_env()
+                .unwrap_or_else(|_| "tower_http=debug".into()),
+        )
+        .with(tracing_subscriber::fmt::layer())
+        .init();
 
     if let Ok(redis_domain) = env::var("REDIS_URL") {
         match redis::Client::open(redis_domain.clone()) {
@@ -25,7 +34,14 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
                     .route("/", get(render_index))
                     .route("/index.html", get(render_index))
                     .route("/*path", get(static_path))
-                    .with_state(redis_client);
+                    .with_state(redis_client)
+                    .layer(
+                        TraceLayer::new_for_http()
+                            .make_span_with(DefaultMakeSpan::new().include_headers(true))
+                            .on_request(|request: &Request<Body>, _span: &Span| {
+                                info!("{} {}", request.method(), request.uri().path())
+                            }),
+                    );
 
                 let addr = std::net::SocketAddr::from(([0, 0, 0, 0], 8080));
 
