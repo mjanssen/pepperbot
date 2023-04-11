@@ -3,8 +3,6 @@ use std::{collections::HashMap, env};
 use redis::{Client, Connection, FromRedisValue, ToRedisArgs};
 use thiserror::Error;
 
-use bb8_redis::RedisConnectionManager;
-
 #[derive(Error, Debug)]
 pub enum RedisError {
     #[error(transparent)]
@@ -51,16 +49,6 @@ pub fn get_redis_service() -> Result<RedisService, RedisError> {
         };
 
         return Ok(redis_service);
-    }
-
-    Err(RedisError::RedisUrlMissing)
-}
-
-pub fn get_redis_connection_manager() -> Result<RedisConnectionManager, RedisError> {
-    if let Ok(redis_domain) = env::var("REDIS_URL") {
-        let manager = RedisConnectionManager::new(redis_domain).unwrap();
-
-        return Ok(manager);
     }
 
     Err(RedisError::RedisUrlMissing)

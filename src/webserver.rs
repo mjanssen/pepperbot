@@ -13,20 +13,13 @@ use log::{error, info};
 use std::env;
 use tower_http::trace::{DefaultMakeSpan, TraceLayer};
 use tracing::Span;
-use tracing_subscriber::{layer::SubscriberExt, util::SubscriberInitExt};
 
 static STATIC_DIR: Dir<'_> = include_dir!("./html/build");
 
 #[tokio::main]
 async fn main() -> Result<(), Box<dyn std::error::Error>> {
-    tracing_subscriber::registry()
-        .with(
-            tracing_subscriber::EnvFilter::try_from_default_env()
-                .unwrap_or_else(|_| "tower_http=debug".into()),
-        )
-        .with(tracing_subscriber::fmt::layer())
-        .init();
-
+    env_logger::init();
+    
     if let Ok(redis_domain) = env::var("REDIS_URL") {
         match redis::Client::open(redis_domain.clone()) {
             Ok(redis_client) => {
