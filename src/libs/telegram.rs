@@ -5,6 +5,7 @@ use teloxide::{prelude::*, utils::command::BotCommands, RequestError};
 use thiserror::Error;
 
 use crate::libs::category::match_category;
+use crate::libs::version::{get_app_version, get_helm_chart_version};
 
 use super::{
     category::CATEGORIES,
@@ -28,6 +29,8 @@ pub enum BotError {
 enum Command {
     #[command(description = "List these options with information")]
     Help,
+    #[command(description = "Get the current running version")]
+    Version,
     #[command(description = "Signup for Pepperbot to receive messages when a new deal is listed")]
     Start,
     #[command(description = "Cancel subscription for Pepperbot")]
@@ -302,6 +305,24 @@ impl BotCommandService {
                     .as_str(),
                 )
                 .await;
+
+                Ok(())
+            }
+            Command::Version => {
+                let app_version = get_app_version();
+                let helm_chart_version = get_helm_chart_version();
+
+                Self::send_message(
+                    &bot,
+                    msg.chat.id.to_string(),
+                    format!(
+                        "App: {}\nHelm Chart: {}",
+                        app_version,
+                        helm_chart_version
+                    )
+                        .as_str(),
+                )
+                    .await;
 
                 Ok(())
             }

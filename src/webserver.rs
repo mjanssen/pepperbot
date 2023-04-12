@@ -14,11 +14,16 @@ use std::env;
 use tower_http::trace::{DefaultMakeSpan, TraceLayer};
 use tracing::Span;
 
+use crate::libs::version::print_version;
+
 static STATIC_DIR: Dir<'_> = include_dir!("./html/build");
 
 #[tokio::main]
 async fn main() -> Result<(), Box<dyn std::error::Error>> {
     env_logger::init();
+    print_version();
+
+    info!("Starting webserver service");
     
     if let Ok(redis_domain) = env::var("REDIS_URL") {
         match redis::Client::open(redis_domain.clone()) {
