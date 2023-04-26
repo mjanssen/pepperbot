@@ -44,6 +44,8 @@ enum Command {
         description = "List available Pepper categories"
     )]
     AvailableCategories,
+    #[command(description = "List your current subscription")]
+    Status,
     #[command(
         rename = "stop_bot",
         description = "Admin - Stop bot from sending messages"
@@ -224,6 +226,48 @@ impl BotCommandService {
 
                 Ok(())
             }
+            Command::Status => {
+                if let Ok(mut con) = redis_client.get_connection() {
+                    // Set correct database first
+                    let _: Result<(), redis::RedisError> = redis::cmd("SELECT")
+                        .arg(Database::SUBSCRIBER as u8)
+                        .query(&mut con);
+
+                    let user: Result<String, redis::RedisError> = redis::cmd("GET")
+                        .arg(msg.chat.id.to_string())
+                        .query(&mut con);
+
+                    match user {
+                        Ok(user) => {
+                            let message_addition: &str = match user.as_str() {
+                                "1" => "all categories",
+                                _ => user.as_str(),
+                            };
+
+                            Self::send_message(
+                                &bot,
+                                msg.chat.id.to_string(),
+                                format!(
+                                    "You are subscribed to Pepperbot. You are following {}",
+                                    message_addition
+                                )
+                                .as_str(),
+                            )
+                            .await;
+                        }
+                        _ => {
+                            Self::send_message(
+                                &bot,
+                                msg.chat.id.to_string(),
+                                "You are not subscribed to Pepperbot. Use /start to subscribe.",
+                            )
+                            .await;
+                        }
+                    }
+                }
+
+                Ok(())
+            }
             Command::Categories => {
                 if let Ok(mut con) = redis_client.get_connection() {
                     if let Some(text) = msg.text() {
@@ -315,14 +359,9 @@ impl BotCommandService {
                 Self::send_message(
                     &bot,
                     msg.chat.id.to_string(),
-                    format!(
-                        "App: {}\nHelm Chart: {}",
-                        app_version,
-                        helm_chart_version
-                    )
-                        .as_str(),
+                    format!("App: {}\nHelm Chart: {}", app_version, helm_chart_version).as_str(),
                 )
-                    .await;
+                .await;
 
                 Ok(())
             }
