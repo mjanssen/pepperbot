@@ -117,3 +117,16 @@ jobs:
           platforms: linux/amd64,linux/arm64
           push: true
           tags: marnixjanssen/telgram-pepperbot:latest
+
+  deploy:
+    runs-on: ubuntu-latest
+    needs: [docker]
+    steps:
+      - name: Deploy to Kubernetes
+        shell: bash
+        env:
+          DEPLOY_URL: ${{ secrets.DEPLOY_URL }}
+          DEPLOY_NAMESPACE: ${{ secrets.DEPLOY_NAMESPACE }}
+          DEPLOY_TOKEN: ${{ secrets.DEPLOY_TOKEN }}
+        run: |
+          curl --header "Authorization: Bearer $DEPLOY_TOKEN" "$DEPLOY_URL/deployment/$DEPLOY_NAMESPACE"
