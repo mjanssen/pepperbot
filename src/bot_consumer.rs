@@ -75,19 +75,6 @@ async fn main() -> Result<(), ConsumerError> {
                                         continue;
                                     }
 
-                                    // Check if the bot has been disabled by the admin
-                                    let is_operational: String = get_config(
-                                        &mut con,
-                                        libs::redis::Config::OperationalKey,
-                                        Database::MESSAGE,
-                                    )
-                                    .unwrap_or("1".to_string());
-
-                                    if is_operational.eq(&"0") {
-                                        stream_client.acknowledge(&mut con, &stream.id)?;
-                                        continue;
-                                    }
-
                                     let res: i64 = redis::cmd("EXISTS")
                                         .arg(&stream_entry.message_id)
                                         .query(&mut con)?;
@@ -97,65 +84,79 @@ async fn main() -> Result<(), ConsumerError> {
                                         continue;
                                     }
 
-                                    info!("Sending message {:?}", &stream_entry);
+                                    // Store this message in Redis to make sure it doesn't get
+                                    // queued again
+                                    let _: Result<(), redis::RedisError> = redis::cmd("SET")
+                                        .arg(&stream_entry.message_id)
+                                        .arg(1)
+                                        .query(&mut con);
 
-                                    let _ = increase_config_value::<()>(
+                                    // Set expiration for key - 2 days
+                                    let _: Result<(), redis::RedisError> = redis::cmd("EXPIRE")
+                                        .arg(&stream_entry.message_id)
+                                        .arg(172800)
+                                        .query(&mut con);
+
+                                    // Check if the bot has been disabled by the admin
+                                    let is_operational: String = get_config(
                                         &mut con,
-                                        libs::redis::Config::DealsSentKey,
+                                        libs::redis::Config::OperationalKey,
                                         Database::MESSAGE,
-                                        1,
-                                    );
+                                    )
+                                    .unwrap_or("1".to_string());
 
-                                    let subscribers = get_subscribers(redis_client.clone()).await;
-
-                                    if let Ok(subs) = subscribers {
-                                        let mut messages_sent = 0;
-
-                                        for (chat_id, categories) in subs {
-                                            let _: Result<(), redis::RedisError> =
-                                                redis::cmd("SET")
-                                                    .arg(&stream_entry.message_id)
-                                                    .arg(1)
-                                                    .query(&mut con);
-
-                                            // Set expiration for key - 2 days
-                                            let _: Result<(), redis::RedisError> =
-                                                redis::cmd("EXPIRE")
-                                                    .arg(&stream_entry.message_id)
-                                                    .arg(172800)
-                                                    .query(&mut con);
-
-                                            // If user did not subscribe for this category, bail
-                                            if let Some(c) = categories {
-                                                if c.contains(&stream_entry.category) == false {
-                                                    continue;
-                                                }
-                                            }
-
-                                            let sanitized_title = sanitize_regex
-                                                .replace_all(stream_entry.title.as_str(), "\\$1");
-
-                                            let _ = bot_service
-                                                .send_message(
-                                                    chat_id,
-                                                    format!(
-                                                        "[{}]({})",
-                                                        sanitized_title, stream_entry.link
-                                                    ),
-                                                )
-                                                .await;
-
-                                            messages_sent += 1;
-                                        }
-
-                                        stream_client.acknowledge(&mut con, &stream.id)?;
-
+                                    // Only send messages and get subs when we're operational
+                                    if is_operational.eq(&"1") {
                                         let _ = increase_config_value::<()>(
                                             &mut con,
-                                            libs::redis::Config::MessagesSentKey,
+                                            libs::redis::Config::DealsSentKey,
                                             Database::MESSAGE,
-                                            messages_sent,
+                                            1,
                                         );
+
+                                        info!("Sending message {:?}", &stream_entry);
+
+                                        let subscribers =
+                                            get_subscribers(redis_client.clone()).await;
+
+                                        if let Ok(subs) = subscribers {
+                                            let mut messages_sent = 0;
+
+                                            for (chat_id, categories) in subs {
+                                                // If user did not subscribe for this category, bail
+                                                if let Some(c) = categories {
+                                                    if c.contains(&stream_entry.category) == false {
+                                                        continue;
+                                                    }
+                                                }
+
+                                                let sanitized_title = sanitize_regex.replace_all(
+                                                    stream_entry.title.as_str(),
+                                                    "\\$1",
+                                                );
+
+                                                let _ = bot_service
+                                                    .send_message(
+                                                        chat_id,
+                                                        format!(
+                                                            "[{}]({})",
+                                                            sanitized_title, stream_entry.link
+                                                        ),
+                                                    )
+                                                    .await;
+
+                                                messages_sent += 1;
+                                            }
+
+                                            stream_client.acknowledge(&mut con, &stream.id)?;
+
+                                            let _ = increase_config_value::<()>(
+                                                &mut con,
+                                                libs::redis::Config::MessagesSentKey,
+                                                Database::MESSAGE,
+                                                messages_sent,
+                                            );
+                                        }
                                     }
                                 }
                             }
