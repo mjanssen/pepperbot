@@ -152,7 +152,7 @@ impl BotCommandService {
                             Self::send_message(
                                 &bot,
                                 chat_id,
-                                message.replace("/admin_broadcast", "").trim(),
+                                message.replace("/broadcast", "").trim(),
                             )
                             .await;
                         }
