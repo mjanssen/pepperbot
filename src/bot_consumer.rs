@@ -12,8 +12,8 @@ use teloxide::Bot;
 
 use regex::Regex;
 
-use crate::libs::version::print_version;
 use crate::libs::redis::{get_config, get_subscribers, increase_config_value};
+use crate::libs::version::print_version;
 
 #[derive(Debug, Error)]
 enum ConsumerError {
@@ -84,6 +84,7 @@ async fn main() -> Result<(), ConsumerError> {
                                     .unwrap_or("1".to_string());
 
                                     if is_operational.eq(&"0") {
+                                        stream_client.acknowledge(&mut con, &stream.id)?;
                                         continue;
                                     }
 
@@ -102,7 +103,7 @@ async fn main() -> Result<(), ConsumerError> {
                                         &mut con,
                                         libs::redis::Config::DealsSentKey,
                                         Database::MESSAGE,
-                                        1
+                                        1,
                                     );
 
                                     let subscribers = get_subscribers(redis_client.clone()).await;
@@ -123,8 +124,6 @@ async fn main() -> Result<(), ConsumerError> {
                                                     .arg(&stream_entry.message_id)
                                                     .arg(172800)
                                                     .query(&mut con);
-
-                                            stream_client.acknowledge(&mut con, &stream.id)?;
 
                                             // If user did not subscribe for this category, bail
                                             if let Some(c) = categories {
@@ -148,6 +147,8 @@ async fn main() -> Result<(), ConsumerError> {
 
                                             messages_sent += 1;
                                         }
+
+                                        stream_client.acknowledge(&mut con, &stream.id)?;
 
                                         let _ = increase_config_value::<()>(
                                             &mut con,
