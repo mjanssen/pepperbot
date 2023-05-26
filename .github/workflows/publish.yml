@@ -4,7 +4,6 @@ on:
   push:
     branches:
       - 'main'
-      - 'feature/alpine-linux'
 
 jobs:
   html:
@@ -117,7 +116,7 @@ jobs:
           context: .
           platforms: linux/amd64,linux/arm64
           push: true
-          tags: glenndehaan/telegram-pepperbot-alpine:latest
+          tags: marnixjanssen/telgram-pepperbot:latest
 
   deploy:
     name: Deploy
