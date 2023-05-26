@@ -1,20 +1,12 @@
-FROM debian:bullseye-slim
+FROM alpine:3.18
 
 ARG TARGETARCH
 
-RUN apt-get update
+RUN apk add --no-cache dumb-init
 
-RUN apt-get install -y ca-certificates dumb-init
-RUN update-ca-certificates --fresh
-
-COPY message-queuing_$TARGETARCH /usr/local/bin/message-queuing
-COPY bot-commands_$TARGETARCH /usr/local/bin/bot-commands
-COPY bot-consumer_$TARGETARCH /usr/local/bin/bot-consumer
-COPY webserver_$TARGETARCH /usr/local/bin/webserver
-
-RUN chmod 755 /usr/local/bin/message-queuing \
-    /usr/local/bin/bot-commands \
-    /usr/local/bin/bot-consumer \
-    /usr/local/bin/webserver
+COPY --chmod=755 message-queuing_$TARGETARCH /usr/local/bin/message-queuing
+COPY --chmod=755 bot-commands_$TARGETARCH /usr/local/bin/bot-commands
+COPY --chmod=755 bot-consumer_$TARGETARCH /usr/local/bin/bot-consumer
+COPY --chmod=755 webserver_$TARGETARCH /usr/local/bin/webserver
 
 RUN echo -n `date '+v%Y.%m.%d.%H.%M'` > /etc/pepperbot_build
