@@ -1,15 +1,16 @@
 pub mod libs;
+pub mod structs;
 
 use libs::redis_stream_client::RedisStreamError;
 use libs::rss::RSSError;
-use log::{error, info, warn};
+use log::{error, info};
 use rss::Channel;
 use std::env;
 use std::thread::sleep;
 use std::time::Duration;
+use structs::message::Message;
 
-use crate::libs::redis::Database;
-use crate::libs::redis_stream_client::{RedisStreamClient, StreamEntry};
+use crate::libs::redis::{publish_message, Database};
 use crate::libs::rss::get_rss_data;
 use crate::libs::version::print_version;
 use thiserror::Error;
@@ -36,15 +37,6 @@ async fn main() -> Result<(), QueuingError> {
     if let Ok(redis_domain) = env::var("REDIS_URL") {
         match redis::Client::open(redis_domain.clone()) {
             Ok(redis_client) => {
-                let stream_client = RedisStreamClient {
-                    client: redis_client.clone(),
-                };
-
-                // We don't care for existing group errors
-                match stream_client.create_group_and_stream() {
-                    _ => (),
-                }
-
                 loop {
                     match redis_client.get_connection() {
                         Ok(mut con) => {
@@ -61,29 +53,32 @@ async fn main() -> Result<(), QueuingError> {
                                     let id = link.clone();
                                     let res: i64 = redis::cmd("EXISTS").arg(&id).query(&mut con)?;
 
-                                    if res == 0 {
-                                        let category = match item.categories.first() {
-                                            Some(c) => c.name.clone(),
-                                            _ => "".to_string(),
-                                        };
-
-                                        let title = match item.title {
-                                            Some(t) => t,
-                                            _ => "".to_string(),
-                                        };
-
-                                        let stream_entry = StreamEntry {
-                                            message_id: link.clone(),
-                                            link,
-                                            category: category.to_lowercase(),
-                                            title,
-                                        };
-
-                                        match stream_client.add(stream_entry, &mut con) {
-                                            Ok(id) => info!("added id: {}", id),
-                                            Err(e) => warn!("xadd failed: {}", e),
-                                        }
+                                    if res.eq(&1) {
+                                        continue;
                                     }
+
+                                    let category = match item.categories.first() {
+                                        Some(c) => c.name.clone(),
+                                        _ => "".to_string(),
+                                    };
+
+                                    let title = match item.title {
+                                        Some(t) => t,
+                                        _ => "".to_string(),
+                                    };
+
+                                    if let Err(e) = publish_message(
+                                        redis_domain.clone(),
+                                        Message {
+                                            id,
+                                            channel: "messages".to_string(),
+                                            payload: structs::message::Deal::new(
+                                                link, category, title,
+                                            ),
+                                        },
+                                    ) {
+                                        error!("Adding to redis failed {:?}", e);
+                                    };
                                 }
                             }
 
