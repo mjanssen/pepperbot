@@ -1,7 +1,7 @@
 use std::{collections::HashMap, env};
 
 use log::info;
-use redis::{Client, Connection, FromRedisValue, ToRedisArgs};
+use redis::{Client, Commands, Connection, FromRedisValue, ToRedisArgs};
 use thiserror::Error;
 
 use crate::structs::message::{Message, MessageError};
@@ -184,9 +184,9 @@ pub fn publish_message(redis_url: String, message: Message) -> Result<(), Messag
                         .arg(Database::MESSAGE as u8)
                         .query(&mut con);
 
-                    match con.rpush::<String, String, i32>(message.channel, json) {
+                    match con.rpush::<String, String, i32>(message.list.clone(), json) {
                         Ok(e) => {
-                            info!("Added message to channel {:?}", e);
+                            info!("Added message to list {}: {:?}", message.list, e);
                             return Ok(());
                         }
                         Err(e) => return Err(MessageError::RedisError(e)),

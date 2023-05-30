@@ -1,6 +1,7 @@
-use serde::Serialize;
+use serde::{Deserialize, Serialize};
 use thiserror::Error;
-use uuid::Uuid;
+
+pub static LIST_NAME: &str = "deals";
 
 #[derive(Debug, Error)]
 pub enum MessageError {
@@ -11,26 +12,25 @@ pub enum MessageError {
     ParseError,
 }
 
-#[derive(Serialize)]
+#[derive(Serialize, Deserialize, Debug)]
 pub struct Message {
     pub id: String,
-    pub channel: String,
+    pub list: String,
     pub payload: Deal,
 }
 
 impl Message {
     pub fn new(payload: Deal) -> Message {
         Message {
-            id: Uuid::new_v4().to_string(),
-            channel: String::from("deals"),
+            id: payload.link.clone(),
+            list: String::from(LIST_NAME),
             payload,
         }
     }
 }
 
-#[derive(Serialize)]
+#[derive(Serialize, Deserialize, Debug)]
 pub struct Deal {
-    pub id: String,
     pub link: String,
     pub category: String,
     pub title: String,
@@ -39,7 +39,6 @@ pub struct Deal {
 impl Deal {
     pub fn new(link: String, category: String, title: String) -> Deal {
         Deal {
-            id: link.clone(),
             link,
             category,
             title,

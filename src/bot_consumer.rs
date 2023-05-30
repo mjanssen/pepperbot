@@ -2,11 +2,11 @@ pub mod libs;
 pub mod structs;
 
 use libs::redis::Database;
-use libs::redis_stream_client::{RedisStreamClient, StreamEntry};
+use libs::redis_stream_client::RedisStreamClient;
 use libs::telegram::BotMessageService;
-use log::info;
-use redis::{streams::StreamId, ConnectionLike};
-use std::env;
+use log::{error, info};
+use redis::ConnectionLike;
+use std::{env, println};
 use thiserror::Error;
 
 use teloxide::Bot;
@@ -29,30 +29,18 @@ async fn main() -> Result<(), ConsumerError> {
 
     info!("Starting bot consumer service");
 
+    let sanitize_regex = Regex::new(r"([^\w\s\\'\\’\\$\\€])").unwrap();
+
     if let Ok(redis_domain) = env::var("REDIS_URL") {
         match redis::Client::open(redis_domain.clone()) {
             Ok(redis_client) => {
-                // Create a sanitize regex to clean the title
-                let sanitize_regex = Regex::new(r"([^\w\s\\'\\’\\$\\€])").unwrap();
-
                 let stream_client = RedisStreamClient {
                     client: redis_client.clone(),
                 };
 
-                let consumer_name = stream_client.consumer_name();
                 let bot_service = BotMessageService {
                     bot: Bot::from_env(),
                 };
-
-                // We don't care for existing group errors
-                match stream_client.create_group_and_stream() {
-                    _ => (),
-                }
-
-                // Make sure the generic application config is set
-                match stream_client.create_generic_config() {
-                    _ => (),
-                }
 
                 loop {
                     if redis_client.is_open() == false {
@@ -60,144 +48,96 @@ async fn main() -> Result<(), ConsumerError> {
                     }
 
                     if let Ok(mut con) = redis_client.get_connection() {
-                        // Make the current connection connect to the messages database
-                        let _: Result<(), redis::RedisError> = redis::cmd("SELECT")
-                            .arg(Database::MESSAGE as u8)
-                            .query(&mut con);
+                        if let Some(message) = stream_client.read(&mut con) {
+                            info!("{}", message.id);
 
-                        let result = stream_client.read(&mut con, &consumer_name);
+                            // Make sure we're using the message database
+                            let _: Result<(), redis::RedisError> = redis::cmd("SELECT")
+                                .arg(Database::MESSAGE as u8)
+                                .query(&mut con);
 
-                        if let Ok(stream_key) = result {
-                            for key in stream_key.keys {
-                                if let Some(stream) = key.ids.first() {
-                                    let stream_entry = process_stream_entry(stream);
+                            let res: i64 = redis::cmd("EXISTS").arg(&message.id).query(&mut con)?;
 
-                                    if stream_entry.message_id.eq("") {
-                                        continue;
-                                    }
+                            println!("{:?}", res);
 
-                                    let res: i64 = redis::cmd("EXISTS")
-                                        .arg(&stream_entry.message_id)
-                                        .query(&mut con)?;
+                            // Only send if the message has not been send yet
+                            if res == 1 {
+                                continue;
+                            }
 
-                                    // Only send if the message has not been send yet
-                                    if res == 1 {
-                                        continue;
-                                    }
+                            // Store this message in Redis to make sure it doesn't get
+                            // queued again
+                            let _: Result<(), redis::RedisError> =
+                                redis::cmd("SET").arg(&message.id).arg(1).query(&mut con);
 
-                                    // Store this message in Redis to make sure it doesn't get
-                                    // queued again
-                                    let _: Result<(), redis::RedisError> = redis::cmd("SET")
-                                        .arg(&stream_entry.message_id)
-                                        .arg(1)
-                                        .query(&mut con);
+                            // Set expiration for key - 2 days
+                            let _: Result<(), redis::RedisError> = redis::cmd("EXPIRE")
+                                .arg(&message.id)
+                                .arg(172800)
+                                .query(&mut con);
 
-                                    // Set expiration for key - 2 days
-                                    let _: Result<(), redis::RedisError> = redis::cmd("EXPIRE")
-                                        .arg(&stream_entry.message_id)
-                                        .arg(172800)
-                                        .query(&mut con);
+                            // Check if the bot has been disabled by the admin
+                            let is_operational: String = get_config(
+                                &mut con,
+                                libs::redis::Config::OperationalKey,
+                                Database::MESSAGE,
+                            )
+                            .unwrap_or("1".to_string());
 
-                                    // Check if the bot has been disabled by the admin
-                                    let is_operational: String = get_config(
-                                        &mut con,
-                                        libs::redis::Config::OperationalKey,
-                                        Database::MESSAGE,
-                                    )
-                                    .unwrap_or("1".to_string());
+                            // Only send messages and get subs when we're operational
+                            if is_operational.eq(&"1") {
+                                let _ = increase_config_value::<()>(
+                                    &mut con,
+                                    libs::redis::Config::DealsSentKey,
+                                    Database::MESSAGE,
+                                    1,
+                                );
 
-                                    // Only send messages and get subs when we're operational
-                                    if is_operational.eq(&"1") {
-                                        let _ = increase_config_value::<()>(
-                                            &mut con,
-                                            libs::redis::Config::DealsSentKey,
-                                            Database::MESSAGE,
-                                            1,
-                                        );
+                                info!("Sending message {:?}", &message);
 
-                                        info!("Sending message {:?}", &stream_entry);
+                                let subscribers = get_subscribers(redis_client.clone()).await;
+                                if let Ok(subs) = subscribers {
+                                    let mut messages_sent = 0;
 
-                                        let subscribers =
-                                            get_subscribers(redis_client.clone()).await;
-
-                                        if let Ok(subs) = subscribers {
-                                            let mut messages_sent = 0;
-
-                                            for (chat_id, categories) in subs {
-                                                // If user did not subscribe for this category, bail
-                                                if let Some(c) = categories {
-                                                    if c.contains(&stream_entry.category) == false {
-                                                        continue;
-                                                    }
-                                                }
-
-                                                let sanitized_title = sanitize_regex.replace_all(
-                                                    stream_entry.title.as_str(),
-                                                    "\\$1",
-                                                );
-
-                                                let _ = bot_service
-                                                    .send_message(
-                                                        chat_id,
-                                                        format!(
-                                                            "[{}]({})",
-                                                            sanitized_title, stream_entry.link
-                                                        ),
-                                                    )
-                                                    .await;
-
-                                                messages_sent += 1;
+                                    for (chat_id, categories) in subs {
+                                        // If user did not subscribe for this category, bail
+                                        if let Some(c) = categories {
+                                            if c.contains(&message.payload.category) == false {
+                                                continue;
                                             }
-
-                                            stream_client.acknowledge(&mut con, &stream.id)?;
-
-                                            let _ = increase_config_value::<()>(
-                                                &mut con,
-                                                libs::redis::Config::MessagesSentKey,
-                                                Database::MESSAGE,
-                                                messages_sent,
-                                            );
                                         }
+
+                                        let sanitized_title = sanitize_regex
+                                            .replace_all(message.payload.title.as_str(), "\\$1");
+
+                                        let _ = bot_service
+                                            .send_message(
+                                                chat_id,
+                                                format!(
+                                                    "[{}]({})",
+                                                    sanitized_title, message.payload.link
+                                                ),
+                                            )
+                                            .await;
+
+                                        messages_sent += 1;
                                     }
+
+                                    let _ = increase_config_value::<()>(
+                                        &mut con,
+                                        libs::redis::Config::MessagesSentKey,
+                                        Database::MESSAGE,
+                                        messages_sent,
+                                    );
                                 }
                             }
                         }
                     }
                 }
             }
-            Err(_) => panic!("Could not connect to redis"),
+            Err(_) => error!("Connection with Redis failed"),
         }
     }
 
-    Ok(())
-}
-
-fn process_stream_entry(stream_entry: &StreamId) -> StreamEntry {
-    let message_id: String = match stream_entry.get("message_id") {
-        Some(v) => v,
-        _ => "".to_string(),
-    };
-
-    let title: String = match stream_entry.get("title") {
-        Some(v) => v,
-        _ => "".to_string(),
-    };
-
-    let link: String = match stream_entry.get("link") {
-        Some(v) => v,
-        _ => "".to_string(),
-    };
-
-    // Can be used later on
-    let category: String = match stream_entry.get("category") {
-        Some(v) => v,
-        _ => "".to_string(),
-    };
-
-    StreamEntry {
-        message_id,
-        title,
-        link,
-        category,
-    }
+    return Ok(());
 }
