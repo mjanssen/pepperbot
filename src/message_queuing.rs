@@ -10,6 +10,7 @@ use std::time::Duration;
 
 use crate::libs::redis::Database;
 use crate::libs::redis_stream_client::{RedisStreamClient, StreamEntry};
+use crate::libs::redis_list::{RedisList, ListEntry};
 use crate::libs::rss::get_rss_data;
 use crate::libs::version::print_version;
 use thiserror::Error;
@@ -37,6 +38,10 @@ async fn main() -> Result<(), QueuingError> {
         match redis::Client::open(redis_domain.clone()) {
             Ok(redis_client) => {
                 let stream_client = RedisStreamClient {
+                    client: redis_client.clone(),
+                };
+
+                let list_client = RedisList {
                     client: redis_client.clone(),
                 };
 
@@ -74,14 +79,26 @@ async fn main() -> Result<(), QueuingError> {
 
                                         let stream_entry = StreamEntry {
                                             message_id: link.clone(),
-                                            link,
+                                            link: link.clone(),
                                             category: category.to_lowercase(),
-                                            title,
+                                            title: title.clone(),
+                                        };
+
+                                        let list_entry = ListEntry {
+                                            message_id: link.clone(),
+                                            link: link.clone(),
+                                            category: category.to_lowercase(),
+                                            title: title.clone(),
                                         };
 
                                         match stream_client.add(stream_entry, &mut con) {
                                             Ok(id) => info!("added id: {}", id),
                                             Err(e) => warn!("xadd failed: {}", e),
+                                        }
+
+                                        match list_client.add(list_entry, &mut con) {
+                                            Ok(obj) => info!("Added to queue: {}", obj),
+                                            Err(e) => warn!("Failed while adding to queue: {}", e),
                                         }
                                     }
                                 }
