@@ -148,7 +148,7 @@ pub fn increase_config_value<T: FromRedisValue>(
         .arg(next_database as u8)
         .query(&mut con);
 
-    return Ok(());
+    Ok(())
 }
 
 pub fn get_config<T: FromRedisValue>(
@@ -172,7 +172,7 @@ pub fn get_config<T: FromRedisValue>(
         return Some(r);
     }
 
-    return None;
+    None
 }
 
 pub fn publish_message(redis_url: String, message: Message) -> Result<(), MessageError> {
@@ -195,8 +195,8 @@ pub fn publish_message(redis_url: String, message: Message) -> Result<(), Messag
 
                 Err(MessageError::ParseError)
             }
-            Err(e) => return Err(MessageError::RedisError(e)),
+            Err(e) => Err(MessageError::RedisError(e)),
         },
-        Err(e) => return Err(MessageError::RedisError(e)),
+        Err(e) => Err(MessageError::RedisError(e)),
     }
 }

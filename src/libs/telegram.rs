@@ -95,7 +95,7 @@ impl BotCommandService {
 
         info!("Admin command executed by non-admin {}", chat_id);
 
-        return false;
+        false
     }
 
     async fn send_message(bot: &Bot, chat_id: String, message: &str) {

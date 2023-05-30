@@ -1,9 +1,4 @@
-use std::todo;
-
-use redis::{
-    streams::{StreamMaxlen, StreamReadOptions, StreamReadReply},
-    Client, Commands, Connection, RedisError, RedisResult,
-};
+use redis::{Client, Commands, Connection, RedisError, RedisResult};
 
 use thiserror::Error;
 use uuid::Uuid;
@@ -11,9 +6,6 @@ use uuid::Uuid;
 use crate::structs::message::{Message, LIST_NAME};
 
 use super::redis::{Config, Database};
-
-const STREAM_KEY: &str = "messages_stream_v2";
-const GROUP_NAME: &str = "messages_consumer_v2";
 
 #[derive(Debug, Error)]
 pub enum RedisStreamError {
@@ -68,24 +60,6 @@ impl RedisStreamClient {
         Uuid::new_v4().to_string()
     }
 
-    pub fn add(
-        &self,
-        stream_entry: StreamEntry,
-        con: &mut Connection,
-    ) -> Result<String, RedisError> {
-        con.xadd_maxlen::<&str, &str, &str, &String, String>(
-            STREAM_KEY,
-            StreamMaxlen::Approx(100),
-            "*",
-            &[
-                ("message_id", &stream_entry.message_id),
-                ("link", &stream_entry.link),
-                ("title", &stream_entry.title),
-                ("category", &stream_entry.category),
-            ],
-        )
-    }
-
     pub fn read(&self, con: &mut Connection) -> Option<Message> {
         // Make sure we're using the message database
         let _: Result<(), redis::RedisError> =
@@ -98,10 +72,6 @@ impl RedisStreamClient {
             }
         }
 
-        return None;
-    }
-
-    pub fn acknowledge(&self, con: &mut Connection, stream_id: &String) -> RedisResult<()> {
-        con.xack(&STREAM_KEY, &GROUP_NAME, &[stream_id])
+        None
     }
 }

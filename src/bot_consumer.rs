@@ -139,5 +139,5 @@ async fn main() -> Result<(), ConsumerError> {
         }
     }
 
-    return Ok(());
+    Ok(())
 }
