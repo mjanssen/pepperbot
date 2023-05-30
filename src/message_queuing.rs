@@ -67,16 +67,11 @@ async fn main() -> Result<(), QueuingError> {
                                         _ => "".to_string(),
                                     };
 
-                                    if let Err(e) = publish_message(
-                                        redis_domain.clone(),
-                                        Message {
-                                            id,
-                                            channel: "messages".to_string(),
-                                            payload: structs::message::Deal::new(
-                                                link, category, title,
-                                            ),
-                                        },
-                                    ) {
+                                    let message = Message::new(structs::message::Deal::new(
+                                        link, category, title,
+                                    ));
+
+                                    if let Err(e) = publish_message(redis_domain.clone(), message) {
                                         error!("Adding to redis failed {:?}", e);
                                     };
                                 }
