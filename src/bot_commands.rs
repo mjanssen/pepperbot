@@ -1,4 +1,5 @@
 pub mod libs;
+pub mod structs;
 
 use log::{info, warn};
 use std::env;

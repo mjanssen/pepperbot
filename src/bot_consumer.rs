@@ -1,4 +1,5 @@
 pub mod libs;
+pub mod structs;
 
 use libs::redis::Database;
 use libs::redis_stream_client::{RedisStreamClient, StreamEntry};
