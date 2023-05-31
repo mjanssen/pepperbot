@@ -6,7 +6,7 @@ use libs::redis_stream_client::RedisStreamClient;
 use libs::telegram::BotMessageService;
 use log::{error, info};
 use redis::ConnectionLike;
-use std::{env, println};
+use std::env;
 use thiserror::Error;
 
 use teloxide::Bot;
@@ -38,6 +38,9 @@ async fn main() -> Result<(), ConsumerError> {
                     client: redis_client.clone(),
                 };
 
+                // Make sure we have the required configuration available
+                let _ = stream_client.create_generic_config();
+
                 let bot_service = BotMessageService {
                     bot: Bot::from_env(),
                 };
@@ -57,8 +60,6 @@ async fn main() -> Result<(), ConsumerError> {
                                 .query(&mut con);
 
                             let res: i64 = redis::cmd("EXISTS").arg(&message.id).query(&mut con)?;
-
-                            println!("{:?}", res);
 
                             // Only send if the message has not been send yet
                             if res == 1 {

@@ -1,11 +1,9 @@
 use redis::{Client, Commands, Connection, RedisError, RedisResult};
 
 use thiserror::Error;
-use uuid::Uuid;
-
-use crate::structs::message::{Message, LIST_NAME};
 
 use super::redis::{Config, Database};
+use crate::structs::message::{Message, LIST_NAME};
 
 #[derive(Debug, Error)]
 pub enum RedisStreamError {
@@ -54,10 +52,6 @@ impl RedisStreamClient {
 
     pub fn get_connection(&self) -> RedisResult<Connection> {
         self.client.get_connection()
-    }
-
-    pub fn consumer_name(&self) -> String {
-        Uuid::new_v4().to_string()
     }
 
     pub fn read(&self, con: &mut Connection) -> Option<Message> {
