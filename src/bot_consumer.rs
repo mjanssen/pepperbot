@@ -111,6 +111,8 @@ async fn main() -> Result<(), ConsumerError> {
                                         let sanitized_title = sanitize_regex
                                             .replace_all(message.payload.title.as_str(), "\\$1");
 
+                                        info!("Sending {} to {}", message.payload.link, chat_id);
+
                                         let _ = bot_service
                                             .send_message(
                                                 chat_id,
