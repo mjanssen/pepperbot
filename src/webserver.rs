@@ -1,4 +1,5 @@
 pub mod libs;
+pub mod structs;
 
 use axum::{
     body::{self, Body, Empty, Full},
@@ -24,7 +25,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
     print_version();
 
     info!("Starting webserver service");
-    
+
     if let Ok(redis_domain) = env::var("REDIS_URL") {
         match redis::Client::open(redis_domain.clone()) {
             Ok(redis_client) => {

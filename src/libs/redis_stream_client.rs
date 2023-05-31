@@ -2,8 +2,9 @@ use redis::{Client, Commands, Connection, RedisError, RedisResult};
 
 use thiserror::Error;
 
-use super::redis::{Config, Database};
 use crate::structs::message::{Message, LIST_NAME};
+
+use super::redis::{Config, Database};
 
 #[derive(Debug, Error)]
 pub enum RedisStreamError {
