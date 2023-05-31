@@ -68,7 +68,9 @@ async fn main() -> Result<(), QueuingError> {
                                     };
 
                                     let message = Message::new(structs::message::Deal::new(
-                                        link, category, title,
+                                        link,
+                                        category.to_lowercase(),
+                                        title,
                                     ));
 
                                     if let Err(e) = publish_message(redis_domain.clone(), message) {
