@@ -1,7 +1,10 @@
 use std::{collections::HashMap, env};
 
-use redis::{Client, Connection, FromRedisValue, ToRedisArgs};
+use log::info;
+use redis::{Client, Commands, Connection, FromRedisValue, ToRedisArgs};
 use thiserror::Error;
+
+use crate::structs::message::{Message, MessageError};
 
 #[derive(Error, Debug)]
 pub enum RedisError {
@@ -145,7 +148,7 @@ pub fn increase_config_value<T: FromRedisValue>(
         .arg(next_database as u8)
         .query(&mut con);
 
-    return Ok(());
+    Ok(())
 }
 
 pub fn get_config<T: FromRedisValue>(
@@ -169,5 +172,31 @@ pub fn get_config<T: FromRedisValue>(
         return Some(r);
     }
 
-    return None;
+    None
+}
+
+pub fn publish_message(redis_url: String, message: Message) -> Result<(), MessageError> {
+    match redis::Client::open(redis_url) {
+        Ok(redis_client) => match redis_client.get_connection() {
+            Ok(mut con) => {
+                if let Ok(json) = serde_json::to_string(&message) {
+                    let _: Result<(), redis::RedisError> = redis::cmd("SELECT")
+                        .arg(Database::MESSAGE as u8)
+                        .query(&mut con);
+
+                    match con.rpush::<String, String, i32>(message.list.clone(), json) {
+                        Ok(e) => {
+                            info!("Added message to list {}: {:?}", message.list, e);
+                            return Ok(());
+                        }
+                        Err(e) => return Err(MessageError::RedisError(e)),
+                    }
+                }
+
+                Err(MessageError::ParseError)
+            }
+            Err(e) => Err(MessageError::RedisError(e)),
+        },
+        Err(e) => Err(MessageError::RedisError(e)),
+    }
 }

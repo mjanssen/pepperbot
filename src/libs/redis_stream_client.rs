@@ -1,15 +1,9 @@
-use redis::{
-    streams::{StreamMaxlen, StreamReadOptions, StreamReadReply},
-    Client, Commands, Connection, RedisError, RedisResult,
-};
+use redis::{Client, Commands, Connection, RedisError, RedisResult};
 
 use thiserror::Error;
-use uuid::Uuid;
 
-use super::redis::{Database, Config};
-
-const STREAM_KEY: &str = "messages_stream_v2";
-const GROUP_NAME: &str = "messages_consumer_v2";
+use super::redis::{Config, Database};
+use crate::structs::message::{Message, LIST_NAME};
 
 #[derive(Debug, Error)]
 pub enum RedisStreamError {
@@ -30,25 +24,6 @@ pub struct RedisStreamClient {
 }
 
 impl RedisStreamClient {
-    pub fn create_group_and_stream(&self) -> Result<(), RedisStreamError> {
-        let mut con: Connection = self.get_connection()?;
-
-        // Make the current connection connect to the messages database
-        let _: Result<(), redis::RedisError> = redis::cmd("SELECT")
-            .arg(Database::MESSAGE as u8)
-            .query(&mut con);
-
-        match con.xgroup_create_mkstream(STREAM_KEY, GROUP_NAME, "$") {
-            Ok(val) => val,
-            Err(e) => {
-                return Err(RedisStreamError::FailedCreateStream(e));
-            }
-        };
-
-        Ok(())
-    }
-
-    // Create generic config for the application. SETNX is used to keep existing config
     pub fn create_generic_config(&self) -> Result<(), RedisStreamError> {
         let mut con: Connection = self.get_connection()?;
 
@@ -79,41 +54,18 @@ impl RedisStreamClient {
         self.client.get_connection()
     }
 
-    pub fn consumer_name(&self) -> String {
-        Uuid::new_v4().to_string()
-    }
+    pub fn read(&self, con: &mut Connection) -> Option<Message> {
+        // Make sure we're using the message database
+        let _: Result<(), redis::RedisError> =
+            redis::cmd("SELECT").arg(Database::MESSAGE as u8).query(con);
 
-    pub fn add(
-        &self,
-        stream_entry: StreamEntry,
-        con: &mut Connection,
-    ) -> Result<String, RedisError> {
-        con.xadd_maxlen::<&str, &str, &str, &String, String>(
-            STREAM_KEY,
-            StreamMaxlen::Approx(100),
-            "*",
-            &[
-                ("message_id", &stream_entry.message_id),
-                ("link", &stream_entry.link),
-                ("title", &stream_entry.title),
-                ("category", &stream_entry.category),
-            ],
-        )
-    }
+        let read: RedisResult<(String, String)> = con.blpop(LIST_NAME, 0);
+        if let Ok((_list, list_message)) = read {
+            if let Ok(message) = serde_json::from_str::<Message>(&list_message) {
+                return Some(message);
+            }
+        }
 
-    pub fn read(
-        &self,
-        con: &mut Connection,
-        consumer_name: &String,
-    ) -> RedisResult<StreamReadReply> {
-        let opts: StreamReadOptions = StreamReadOptions::default()
-            .count(1)
-            .group(&GROUP_NAME, &consumer_name);
-
-        con.xread_options(&[STREAM_KEY], &[">"], &opts)
-    }
-
-    pub fn acknowledge(&self, con: &mut Connection, stream_id: &String) -> RedisResult<()> {
-        con.xack(&STREAM_KEY, &GROUP_NAME, &[stream_id])
+        None
     }
 }

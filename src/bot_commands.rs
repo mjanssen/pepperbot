@@ -1,4 +1,5 @@
 pub mod libs;
+pub mod structs;
 
 use log::{info, warn};
 use std::env;
@@ -9,7 +10,7 @@ use teloxide::Bot;
 use crate::libs::version::print_version;
 
 #[tokio::main]
-async fn main() -> () {
+async fn main() {
     env_logger::init();
     print_version();
 
@@ -28,6 +29,4 @@ async fn main() -> () {
             Err(_) => warn!("Could not connect to redis"),
         }
     }
-
-    ()
 }
