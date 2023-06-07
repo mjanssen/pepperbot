@@ -32,6 +32,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
                 let app = axum::Router::new()
                     .route("/", get(render_index))
                     .route("/index.html", get(render_index))
+                    .route("/_health", get(health))
                     .route("/*path", get(static_path))
                     .with_state(redis_client)
                     .layer(
@@ -75,6 +76,17 @@ async fn render_index(State(redis_service): State<redis::Client>) -> impl IntoRe
                 .unwrap()
         }
     }
+}
+
+async fn health(State(_redis_service): State<redis::Client>) -> impl IntoResponse {
+    Response::builder()
+        .status(axum::http::status::StatusCode::OK)
+        .header(
+            header::CONTENT_TYPE,
+            HeaderValue::from_str("text/plain").unwrap(),
+        )
+        .body(body::boxed(Full::from("OK".to_string())))
+        .unwrap()
 }
 
 async fn static_path(Path(path): Path<String>) -> impl IntoResponse {
