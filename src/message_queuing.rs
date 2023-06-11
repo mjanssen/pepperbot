@@ -80,6 +80,7 @@ async fn main() -> Result<(), QueuingError> {
                             }
 
                             // Sleep for a while
+                            info!("Run complete! Waiting 5 minutes to continue...");
                             sleep(Duration::from_secs(300));
                         }
                         Err(_) => error!("Redis connection failed"),
