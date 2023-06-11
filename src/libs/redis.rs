@@ -184,9 +184,9 @@ pub fn publish_message(redis_url: String, message: Message) -> Result<(), Messag
                         .arg(Database::MESSAGE as u8)
                         .query(&mut con);
 
-                    match con.rpush::<String, String, i32>(message.list.clone(), json) {
+                    match con.rpush::<String, String, i32>(message.list.clone(), json.clone()) {
                         Ok(e) => {
-                            info!("Added message to list {}: {:?}", message.list, e);
+                            info!("[{:?}] Added message to list {}: {}", e, message.list, json.clone());
                             return Ok(());
                         }
                         Err(e) => return Err(MessageError::RedisError(e)),

@@ -39,7 +39,9 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
                         TraceLayer::new_for_http()
                             .make_span_with(DefaultMakeSpan::new().include_headers(true))
                             .on_request(|request: &Request<Body>, _span: &Span| {
-                                info!("{} {}", request.method(), request.uri().path())
+                                if request.uri().path() != "/_health" {
+                                    info!("{} {}", request.method(), request.uri().path())
+                                }
                             }),
                     );
 
