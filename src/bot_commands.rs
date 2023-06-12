@@ -2,12 +2,11 @@ pub mod libs;
 pub mod structs;
 
 use log::{info, warn};
-use std::env;
 
+use libs::variable::get_environment_variable;
+use libs::version::print_version;
 use libs::telegram::BotCommandService;
 use teloxide::Bot;
-
-use crate::libs::version::print_version;
 
 #[tokio::main]
 async fn main() {
@@ -16,17 +15,17 @@ async fn main() {
 
     info!("Starting bot commands service");
 
-    if let Ok(redis_domain) = env::var("REDIS_URL") {
-        match redis::Client::open(redis_domain.clone()) {
-            Ok(redis_client) => {
-                let bot_service = BotCommandService {
-                    bot: Bot::from_env(),
-                    redis_client,
-                };
+    let redis_url = get_environment_variable("REDIS_URL");
 
-                let _ = bot_service.start().await;
-            }
-            Err(_) => warn!("Could not connect to redis"),
+    match redis::Client::open(redis_url.clone()) {
+        Ok(redis_client) => {
+            let bot_service = BotCommandService {
+                bot: Bot::from_env(),
+                redis_client,
+            };
+
+            let _ = bot_service.start().await;
         }
+        Err(_) => warn!("Could not connect to redis"),
     }
 }
