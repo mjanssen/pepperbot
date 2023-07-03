@@ -10,12 +10,11 @@ use axum::{
 };
 use include_dir::{include_dir, Dir};
 use libs::redis::{get_config, get_subscriber_amount};
+use libs::variable::get_environment_variable;
+use libs::version::print_version;
 use log::{error, info};
-use std::env;
 use tower_http::trace::{DefaultMakeSpan, TraceLayer};
 use tracing::Span;
-
-use crate::libs::version::print_version;
 
 static STATIC_DIR: Dir<'_> = include_dir!("./html/build");
 
@@ -26,33 +25,34 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
 
     info!("Starting webserver service");
 
-    if let Ok(redis_domain) = env::var("REDIS_URL") {
-        match redis::Client::open(redis_domain.clone()) {
-            Ok(redis_client) => {
-                let app = axum::Router::new()
-                    .route("/", get(render_index))
-                    .route("/index.html", get(render_index))
-                    .route("/_health", get(health))
-                    .route("/*path", get(static_path))
-                    .with_state(redis_client)
-                    .layer(
-                        TraceLayer::new_for_http()
-                            .make_span_with(DefaultMakeSpan::new().include_headers(true))
-                            .on_request(|request: &Request<Body>, _span: &Span| {
-                                if request.uri().path() != "/_health" {
-                                    info!("{} {}", request.method(), request.uri().path())
-                                }
-                            }),
-                    );
+    let redis_url = get_environment_variable("REDIS_URL");
 
-                let addr = std::net::SocketAddr::from(([0, 0, 0, 0], 8080));
+    match redis::Client::open(redis_url.clone()) {
+        Ok(redis_client) => {
+            let app = axum::Router::new()
+                .route("/", get(render_index))
+                .route("/index.html", get(render_index))
+                .route("/_health", get(health))
+                .route("/*path", get(static_path))
+                .with_state(redis_client)
+                .layer(
+                    TraceLayer::new_for_http()
+                        .make_span_with(DefaultMakeSpan::new().include_headers(true))
+                        .on_request(|request: &Request<Body>, _span: &Span| {
+                            if request.uri().path() != "/_health" {
+                                info!("{} {}", request.method(), request.uri().path())
+                            }
+                        }),
+                );
 
-                axum::Server::bind(&addr)
-                    .serve(app.into_make_service())
-                    .await?;
-            }
-            Err(_) => error!("Redis connection failed"),
+            let addr = std::net::SocketAddr::from(([0, 0, 0, 0], 8080));
+            info!("App running on: {}", &addr);
+
+            axum::Server::bind(&addr)
+                .serve(app.into_make_service())
+                .await?;
         }
+        Err(_) => error!("Redis connection failed"),
     }
 
     Ok(())
