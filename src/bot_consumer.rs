@@ -4,7 +4,6 @@ pub mod structs;
 use libs::variable::get_environment_variable;
 use libs::version::print_version;
 use libs::redis::Database;
-use libs::redis_stream_client::RedisStreamClient;
 use libs::telegram::BotMessageService;
 use log::{error, info};
 use redis::ConnectionLike;
@@ -14,7 +13,7 @@ use teloxide::Bot;
 
 use regex::Regex;
 
-use crate::libs::redis::{get_config, get_subscribers, increase_config_value};
+use crate::libs::redis::{get_config, get_subscribers, increase_config_value, create_generic_config, read_message};
 
 #[derive(Debug, Error)]
 enum ConsumerError {
@@ -34,12 +33,8 @@ async fn main() -> Result<(), ConsumerError> {
 
     match redis::Client::open(redis_url.clone()) {
         Ok(redis_client) => {
-            let stream_client = RedisStreamClient {
-                client: redis_client.clone(),
-            };
-
             // Make sure we have the required configuration available
-            let _ = stream_client.create_generic_config();
+            let _ = create_generic_config(redis_client.clone());
 
             let bot_service = BotMessageService {
                 bot: Bot::from_env(),
@@ -51,7 +46,7 @@ async fn main() -> Result<(), ConsumerError> {
                 }
 
                 if let Ok(mut con) = redis_client.get_connection() {
-                    if let Some(message) = stream_client.read(&mut con) {
+                    if let Some(message) = read_message(&mut con) {
                         info!("{}", message.id);
 
                         // Make sure we're using the message database

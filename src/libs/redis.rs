@@ -1,10 +1,10 @@
-use std::{collections::HashMap, env};
+use std::collections::HashMap;
 
 use log::info;
-use redis::{Client, Commands, Connection, FromRedisValue, ToRedisArgs};
+use redis::{Client, Commands, Connection, FromRedisValue, RedisResult, ToRedisArgs};
 use thiserror::Error;
 
-use crate::structs::message::{Message, MessageError};
+use crate::structs::message::{LIST_NAME, Message, MessageError};
 
 #[derive(Error, Debug)]
 pub enum RedisError {
@@ -16,11 +16,6 @@ pub enum RedisError {
 
     #[error("No subscribers found")]
     NoSubscribers,
-}
-
-#[derive(Clone)]
-pub struct RedisService {
-    pub client: redis::Client,
 }
 
 pub enum Database {
@@ -43,18 +38,6 @@ impl Config {
             Config::DealsSentKey => "deals_sent_count",
         }
     }
-}
-
-pub fn get_redis_service() -> Result<RedisService, RedisError> {
-    if let Ok(redis_domain) = env::var("REDIS_URL") {
-        let redis_service = RedisService {
-            client: redis::Client::open(redis_domain)?,
-        };
-
-        return Ok(redis_service);
-    }
-
-    Err(RedisError::RedisUrlMissing)
 }
 
 pub async fn get_subscriber_amount(con: &mut Connection) -> usize {
@@ -108,6 +91,32 @@ pub async fn get_subscribers(
     }
 
     Err(RedisError::NoSubscribers)
+}
+
+pub fn create_generic_config(redis_client: Client) -> Result<(), RedisError> {
+    let mut con: Connection = redis_client.get_connection()?;
+
+    // Make the current connection connect to the messages database
+    let _: Result<(), redis::RedisError> = redis::cmd("SELECT")
+        .arg(Database::CONFIG as u8)
+        .query(&mut con);
+
+    let _: Result<u8, redis::RedisError> = redis::cmd("SETNX")
+        .arg(Config::OperationalKey.value())
+        .arg(1)
+        .query::<u8>(&mut con);
+
+    let _: Result<u8, redis::RedisError> = redis::cmd("SETNX")
+        .arg(Config::MessagesSentKey.value())
+        .arg(0)
+        .query::<u8>(&mut con);
+
+    let _: Result<u8, redis::RedisError> = redis::cmd("SETNX")
+        .arg(Config::DealsSentKey.value())
+        .arg(0)
+        .query::<u8>(&mut con);
+
+    Ok(())
 }
 
 pub fn set_config<T: ToRedisArgs>(
@@ -199,4 +208,19 @@ pub fn publish_message(redis_url: String, message: Message) -> Result<(), Messag
         },
         Err(e) => Err(MessageError::RedisError(e)),
     }
+}
+
+pub fn read_message(con: &mut Connection) -> Option<Message> {
+    // Make sure we're using the message database
+    let _: Result<(), redis::RedisError> =
+        redis::cmd("SELECT").arg(Database::MESSAGE as u8).query(con);
+
+    let read: RedisResult<(String, String)> = con.blpop(LIST_NAME, 0);
+    if let Ok((_list, list_message)) = read {
+        if let Ok(message) = serde_json::from_str::<Message>(&list_message) {
+            return Some(message);
+        }
+    }
+
+    None
 }

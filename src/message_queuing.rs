@@ -3,7 +3,6 @@ pub mod structs;
 
 use libs::variable::get_environment_variable;
 use libs::version::print_version;
-use libs::redis_stream_client::RedisStreamError;
 use libs::rss::RSSError;
 use log::{error, info};
 use rss::Channel;
@@ -22,9 +21,6 @@ enum QueuingError {
 
     #[error(transparent)]
     RSSError(#[from] RSSError),
-
-    #[error(transparent)]
-    StreamError(#[from] RedisStreamError),
 }
 
 #[tokio::main]
