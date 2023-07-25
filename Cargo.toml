@@ -32,10 +32,8 @@ thiserror = "1.0.39"
 tokio = { version = "1.26.0", features = ["full"] }
 fuzzy-matcher = "0.3.7"
 axum = "0.6.12"
-tower = "0.4.13"
-tower-http = { version = "0.4.0", features = ["trace"] }
+axum-client-ip = "0.4.1"
 include_dir = "0.7.3"
 mime_guess = "2.0.4"
-tracing = "0.1.37"
 serde = "1.0.163"
 serde_json = "1.0.96"
