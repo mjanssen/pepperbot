@@ -1,20 +1,21 @@
 pub mod libs;
 pub mod structs;
 
+use std::net::SocketAddr;
 use axum::{
-    body::{self, Body, Empty, Full},
+    body::{self, Empty, Full},
     extract::{Path, State},
-    http::{header, HeaderValue, Request},
+    http::{header, HeaderValue},
     response::{IntoResponse, Response},
+    middleware::from_fn,
     routing::get,
 };
 use include_dir::{include_dir, Dir};
+use libs::middleware::request_logger;
 use libs::redis::{get_config, get_subscriber_amount};
 use libs::variable::get_environment_variable;
 use libs::version::print_version;
 use log::{error, info};
-use tower_http::trace::{DefaultMakeSpan, TraceLayer};
-use tracing::Span;
 
 static STATIC_DIR: Dir<'_> = include_dir!("./html/build");
 
@@ -35,21 +36,13 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
                 .route("/_health", get(health))
                 .route("/*path", get(static_path))
                 .with_state(redis_client)
-                .layer(
-                    TraceLayer::new_for_http()
-                        .make_span_with(DefaultMakeSpan::new().include_headers(true))
-                        .on_request(|request: &Request<Body>, _span: &Span| {
-                            if request.uri().path() != "/_health" {
-                                info!("{} {}", request.method(), request.uri().path())
-                            }
-                        }),
-                );
+                .layer(from_fn(request_logger));
 
             let addr = std::net::SocketAddr::from(([0, 0, 0, 0], 8080));
             info!("App running on: {}", &addr);
 
             axum::Server::bind(&addr)
-                .serve(app.into_make_service())
+                .serve(app.into_make_service_with_connect_info::<SocketAddr>())
                 .await?;
         }
         Err(_) => error!("Redis connection failed"),
