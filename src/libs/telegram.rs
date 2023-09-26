@@ -220,7 +220,7 @@ impl BotCommandService {
                     Self::send_message(
                         &bot,
                         msg.chat.id.to_string(),
-                        "Subscription was stopped successfully. You will now receive new updates from Pepper",
+                        "Subscription was stopped successfully. You will no longer receive new updates from Pepper",
                     ).await;
                 }
 
