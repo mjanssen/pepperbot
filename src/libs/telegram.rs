@@ -1,12 +1,14 @@
 use log::info;
 use redis::Client;
 use std::env;
+use teloxide::types::ParseMode;
 use teloxide::{prelude::*, utils::command::BotCommands, RequestError};
 use thiserror::Error;
 
 use crate::libs::category::match_category;
 use crate::libs::version::{get_app_version, get_helm_chart_version};
 
+use super::pepper_request::PepperRequest;
 use super::{
     category::CATEGORIES,
     redis::{get_subscribers, set_config, Config, Database},
@@ -44,6 +46,8 @@ enum Command {
         description = "List available Pepper categories"
     )]
     AvailableCategories,
+    #[command(description = "Get latest deals for specific keyword")]
+    Deals,
     #[command(description = "List your current subscription")]
     Status,
     #[command(
@@ -98,9 +102,20 @@ impl BotCommandService {
         false
     }
 
-    async fn send_message(bot: &Bot, chat_id: String, message: &str) {
+    async fn send_message(
+        bot: &Bot,
+        chat_id: String,
+        message: &str,
+        parse_mode: Option<ParseMode>,
+    ) {
+        let parse_mode = match parse_mode {
+            Some(p) => p,
+            None => ParseMode::Html,
+        };
+
         match bot
             .send_message(chat_id, message.replace("/admin_broadcast", "").trim())
+            .parse_mode(parse_mode)
             .await
         {
             Ok(_) => (),
@@ -120,7 +135,13 @@ impl BotCommandService {
                     if let Ok(mut con) = redis_client.get_connection() {
                         let _ = set_config(&mut con, Config::OperationalKey, 0);
 
-                        Self::send_message(&bot, msg.chat.id.to_string(), "Stopped bot").await;
+                        Self::send_message(
+                            &bot,
+                            msg.chat.id.to_string(),
+                            "Stopped bot",
+                            Some(ParseMode::Html),
+                        )
+                        .await;
 
                         return Ok(());
                     }
@@ -133,7 +154,13 @@ impl BotCommandService {
                     if let Ok(mut con) = redis_client.get_connection() {
                         let _ = set_config(&mut con, Config::OperationalKey, 1);
 
-                        Self::send_message(&bot, msg.chat.id.to_string(), "Started bot").await;
+                        Self::send_message(
+                            &bot,
+                            msg.chat.id.to_string(),
+                            "Started bot",
+                            Some(ParseMode::Html),
+                        )
+                        .await;
 
                         return Ok(());
                     }
@@ -153,6 +180,7 @@ impl BotCommandService {
                                 &bot,
                                 chat_id,
                                 message.replace("/broadcast", "").trim(),
+                                Some(ParseMode::Html),
                             )
                             .await;
                         }
@@ -176,8 +204,13 @@ impl BotCommandService {
                         })
                         .collect();
 
-                    Self::send_message(&bot, msg.chat.id.to_string(), commands.join("\n").as_str())
-                        .await;
+                    Self::send_message(
+                        &bot,
+                        msg.chat.id.to_string(),
+                        commands.join("\n").as_str(),
+                        Some(ParseMode::Html),
+                    )
+                    .await;
 
                     return Ok(());
                 }
@@ -201,6 +234,7 @@ impl BotCommandService {
                     &bot,
                     msg.chat.id.to_string(),
                     "Signup was successful. You will now receive new updates from Pepper",
+                    Some(ParseMode::Html),
                 )
                 .await;
 
@@ -221,6 +255,7 @@ impl BotCommandService {
                         &bot,
                         msg.chat.id.to_string(),
                         "Subscription was stopped successfully. You will no longer receive new updates from Pepper",
+                        Some(ParseMode::Html),
                     ).await;
                 }
 
@@ -252,6 +287,7 @@ impl BotCommandService {
                                     message_addition
                                 )
                                 .as_str(),
+                                Some(ParseMode::Html),
                             )
                             .await;
                         }
@@ -260,6 +296,7 @@ impl BotCommandService {
                                 &bot,
                                 msg.chat.id.to_string(),
                                 "You are not subscribed to Pepperbot. Use /start to subscribe.",
+                                Some(ParseMode::Html),
                             )
                             .await;
                         }
@@ -301,6 +338,7 @@ impl BotCommandService {
                                 &bot,
                                 msg.chat.id.to_string(),
                                 "No categories passed, disabled your category filters",
+                                Some(ParseMode::Html),
                             )
                             .await;
 
@@ -315,6 +353,7 @@ impl BotCommandService {
                                 &bot,
                                 msg.chat.id.to_string(),
                                 format!("Signed up for {}", passed_categories.join(", ")).as_str(),
+                                Some(ParseMode::Html),
                             )
                             .await;
                         }
@@ -324,6 +363,7 @@ impl BotCommandService {
                             &bot,
                             msg.chat.id.to_string(),
                             "Something went wrong with reading your message, please try again.",
+                            Some(ParseMode::Html),
                         )
                         .await;
                     }
@@ -332,6 +372,7 @@ impl BotCommandService {
                         &bot,
                         msg.chat.id.to_string(),
                         "Our service is currently down, please try again later.",
+                        Some(ParseMode::Html),
                     )
                     .await;
                 }
@@ -347,9 +388,47 @@ impl BotCommandService {
                         CATEGORIES.join("\n")
                     )
                     .as_str(),
+                    Some(ParseMode::Html),
                 )
                 .await;
 
+                Ok(())
+            }
+            Command::Deals => {
+                if let Some(text) = msg.text() {
+                    let message = text.replace("/deals ", "");
+                    let pepper_request = PepperRequest::new();
+                    if let Some(deals) = pepper_request.graphql(&message).await {
+                        Self::send_message(
+                            &bot,
+                            msg.chat.id.to_string(),
+                            &format!(
+                                "Found {} deals for {}",
+                                deals.data.suggestions.deal_count, message
+                            ),
+                            Some(ParseMode::Html),
+                        )
+                        .await;
+
+                        for item in deals.data.suggestions.deals {
+                            let sanitized_title = item.title_slug.replace("-", " ");
+
+                            Self::send_message(
+                                &bot,
+                                msg.chat.id.to_string(),
+                                &format!(
+                                    "*{}* \\- [{}](https://nl.pepper.com/aanbiedingen/{}-{})",
+                                    item.display_price,
+                                    sanitized_title,
+                                    item.title_slug,
+                                    item.thread_id
+                                ),
+                                Some(ParseMode::MarkdownV2),
+                            )
+                            .await;
+                        }
+                    }
+                }
                 Ok(())
             }
             Command::Version => {
@@ -360,6 +439,7 @@ impl BotCommandService {
                     &bot,
                     msg.chat.id.to_string(),
                     format!("App: {}\nHelm Chart: {}", app_version, helm_chart_version).as_str(),
+                    Some(ParseMode::Html),
                 )
                 .await;
 
@@ -381,7 +461,7 @@ impl BotMessageService {
         match self
             .bot
             .send_message(chat_id, message)
-            .parse_mode(teloxide::types::ParseMode::MarkdownV2)
+            .parse_mode(ParseMode::MarkdownV2)
             .await
         {
             Ok(_) => Ok(()),
